@@ -39,7 +39,7 @@ func (store mockCurrentInstanceStore) StoreCurrentJIRAInstance(ji Instance) erro
 }
 func (store mockCurrentInstanceStore) LoadCurrentJIRAInstance() (Instance, error) {
 	return &jiraTestInstance{
-		JIRAInstance: *NewJIRAInstance(store.plugin, "test", "jiraTestInstanceKey"),
+		JIRAInstance: *newJIRAInstance(store.plugin, "test", "jiraTestInstanceKey"),
 	}, nil
 }
 

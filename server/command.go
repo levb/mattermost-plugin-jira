@@ -32,8 +32,8 @@ var commandRouter = ActionRouter{
 	DefaultRouteHandler: executeHelp,
 	Log: ActionFilter{
 		func(a *Action) error {
-			if a.Err != nil {
-				a.Errorf("command: %q error:%v", a.CommandHeader.Command, a.Err)
+			if a.LogErr != nil {
+				a.Errorf("command: %q error:%v", a.CommandHeader.Command, a.LogErr)
 			} else {
 				a.Debugf("command: %q", a.CommandHeader.Command)
 			}
@@ -94,8 +94,12 @@ func executeConnect(a *Action) error {
 	if len(a.CommandArgs) != 0 {
 		return executeHelp(a)
 	}
-	return a.RespondPrintf("[Click here to link your Jira account.](%s%s)",
-		a.PluginConfig.PluginURL, routeUserConnect)
+
+	redirectURL, err := a.Instance.GetUserConnectURL(a.PluginConfig, a.SecretsStore, a.MattermostUserId)
+	if err != nil {
+		a.RespondError(0, err)
+	}
+	return a.RespondRedirect(redirectURL)
 }
 
 func executeDisconnect(a *Action) error {

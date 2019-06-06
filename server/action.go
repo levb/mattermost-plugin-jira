@@ -40,7 +40,7 @@ type Action struct {
 	CommandResponse    *model.CommandResponse
 	HTTPResponseWriter http.ResponseWriter
 	HTTPStatusCode     int
-	Err                error
+	LogErr             error
 
 	// Variables
 	Instance         Instance
@@ -296,7 +296,7 @@ func (a *Action) RespondError(httpStatusCode int, err error, wrap ...interface{}
 		a.CommandResponse = commandResponse(err.Error())
 	}
 
-	a.Err = err
+	a.LogErr = err
 	return err
 }
 
@@ -312,6 +312,22 @@ func (a *Action) RespondPrintf(format string, args ...interface{}) error {
 		}
 	} else {
 		a.CommandResponse = commandResponse(text)
+	}
+	return nil
+}
+
+func (a *Action) RespondRedirect(redirectURL string) error {
+	if a.HTTPResponseWriter != nil {
+		status := http.StatusFound
+		if a.HTTPRequest.Method != http.MethodGet {
+			status = http.StatusTemporaryRedirect
+		}
+		http.Redirect(a.HTTPResponseWriter, a.HTTPRequest, redirectURL, status)
+		a.HTTPStatusCode = status
+	} else {
+		a.CommandResponse = &model.CommandResponse{
+			GotoLocation: redirectURL,
+		}
 	}
 	return nil
 }

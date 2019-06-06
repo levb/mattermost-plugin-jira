@@ -16,7 +16,7 @@ const (
 	routeAPIAttachCommentToIssue   = "/api/v2/attach-comment-to-issue"
 	routeAPIUserInfo               = "/api/v2/userinfo"
 	routeAPISubscribeWebhook       = "/api/v2/webhook"
-	routeAPISubscriptionsChannel   = "/api/v2/subscriptions/channel/*"
+	routeAPISubscriptionsChannel   = "/api/v2/subscriptions/channel/" // trailing '/' on purpose
 	routeACInstalled               = "/ac/installed"
 	routeACJSON                    = "/ac/atlassian-connect.json"
 	routeACUninstalled             = "/ac/uninstalled"
@@ -27,7 +27,7 @@ const (
 	routeIncomingIssueEvent        = "/issue_event"
 	routeIncomingWebhook           = "/webhook"
 	routeOAuth1Complete            = "/oauth1/complete.html"
-	routeOAuth1PublicKey           = "/oauth1/public_key.html" // TODO remove, debugging?
+	routeOAuth1PublicKey           = "/oauth1/public_key.html"
 	routeUserConnect               = "/user/connect"
 	routeUserDisconnect            = "/user/disconnect"
 )
@@ -53,8 +53,8 @@ var httpRouter = ActionRouter{
 			if a.HTTPStatusCode == 0 {
 				a.HTTPStatusCode = http.StatusOK
 			}
-			if a.Err != nil {
-				a.Errorf("http: %v %s %v", a.HTTPStatusCode, a.HTTPRequest.URL.String(), a.Err)
+			if a.LogErr != nil {
+				a.Errorf("http: %v %s %v", a.HTTPStatusCode, a.HTTPRequest.URL.String(), a.LogErr)
 			} else {
 				a.Debugf("http: %v %s", a.HTTPStatusCode, a.HTTPRequest.URL.String())
 			}
@@ -78,7 +78,7 @@ var httpRouter = ActionRouter{
 		routeAPISubscribeWebhook: {
 			httpSubscribeWebhook,
 			httpPostFilter()},
-		routeAPISubscriptionsChannel: {
+		routeAPISubscriptionsChannel + "*": {
 			httpChannelSubscriptions,
 			ActionFilter{RequireHTTPMattermostUserId}},
 

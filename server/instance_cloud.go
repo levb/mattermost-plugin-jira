@@ -50,7 +50,7 @@ func NewJIRACloudInstance(key string, installed bool, rawASC string,
 	asc *AtlassianSecurityContext) *jiraCloudInstance {
 
 	return &jiraCloudInstance{
-		JIRAInstance:                NewJIRAInstance(JIRATypeCloud, key),
+		JIRAInstance:                newJIRAInstance(JIRATypeCloud, key),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		AtlassianSecurityContext:    asc,
