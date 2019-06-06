@@ -70,7 +70,7 @@ func httpACInstalled(a *Action) error {
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
-	err = a.CurrentInstanceStore.StoreCurrentJIRAInstance(jiraInstance)
+	err = StoreCurrentJIRAInstanceAndNotify(a.API, a.CurrentInstanceStore, jiraInstance)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}

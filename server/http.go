@@ -78,6 +78,8 @@ var httpRouter = ActionRouter{
 		routeAPISubscribeWebhook: {
 			httpSubscribeWebhook,
 			httpPostFilter()},
+		// httpChannelSubscriptions already ends in a '/', so adding "*" will
+		// pass all sub-paths up to the handler
 		routeAPISubscriptionsChannel + "*": {
 			httpChannelSubscriptions,
 			ActionFilter{RequireHTTPMattermostUserId}},
