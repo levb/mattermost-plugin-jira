@@ -1,62 +1,65 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package action
 
 import (
 	"strings"
 )
 
-type ActionRouter struct {
-	findHandler    func(route string) ActionFunc
-	defaultHandler ActionFunc
-	logHandler     ActionFunc
+type Router struct {
+	FindHandler    func(route string) Func
+	DefaultHandler Func
+	LogHandler     Func
 }
 
-func (ar ActionRouter) RunRoute(route string, a Action, ac *ActionContext) {
+func (ar Router) RunRoute(route string, a Action) {
 	route = strings.TrimRight(route, "/")
+
 	// See if we have a handler for the exact route match
-	handler := ar.findHandler(route)
+	handler := ar.FindHandler(route)
 	if handler == nil {
 		// Look for a subpath match
-		handler = ar.findHandler(route + "/*")
+		handler = ar.FindHandler(route + "/*")
 	}
+
 	// Look for a /* above
 	for handler == nil {
 		n := strings.LastIndex(route, "/")
 		if n == -1 {
 			break
 		}
-		handler = ar.findHandler(route[:n] + "/*")
+		handler = ar.FindHandler(route[:n] + "/*")
 		route = route[:n]
 	}
+
 	// Use the default, if needed
 	if handler == nil {
-		handler = ActionScript{ar.DefaultRouteHandler}
+		handler = ar.DefaultHandler
 	}
 
 	// Run the handler
-	err := handler.Run(a, ac)
+	err := handler(a)
 	if err != nil {
 		return
 	}
 
 	// Log
-	if ar.LogFilter != nil {
-		_ = ar.LogFilter(a, ac)
+	if ar.LogHandler != nil {
+		_ = ar.LogHandler(a)
 	}
 }
 
-type ActionScript []ActionFunc
+type Script []Func
 
-func (script ActionScript) Run(a Action, ac *ActionContext) error {
+func (script Script) Run(a Action) error {
 	for _, f := range script {
 		if f == nil {
 			continue
 		}
-		err := f(a, ac)
+		err := f(a)
 		if err != nil {
-			ac.LogErr = err
+			a.Context().LogErr = err
 			return err
 		}
 	}

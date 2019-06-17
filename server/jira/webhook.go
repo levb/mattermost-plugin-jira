@@ -1,7 +1,7 @@
 // See License for license information.
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 
-package main
+package jira
 
 import (
 	"fmt"

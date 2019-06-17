@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package jira_cloud
 
 import (
 	"crypto/aes"
@@ -12,10 +12,15 @@ import (
 	"io"
 	"time"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/pkg/errors"
 )
 
 const authTokenTTL = 15 * time.Minute
+
+const ArgMMToken = "mm_token"
+
+const StoreKeyTokenSecret = "token_secret"
 
 type AuthToken struct {
 	MattermostUserID string    `json:"mattermost_user_id,omitempty"`
@@ -23,7 +28,15 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func NewEncodedAuthToken(secretStore SecretStore, mattermostUserID, secret string) (returnToken string, returnErr error) {
+func makeAuthTokenEncryptSecret() []byte {
+	newSecret := make([]byte, 32)
+	_, _ = rand.Reader.Read(newSecret)
+	return newSecret
+}
+
+func NewAuthToken(ensuredStore store.EnsuredStore, mattermostUserID,
+	secret string) (returnToken string, returnErr error) {
+
 	defer func() {
 		if returnErr == nil {
 			return
@@ -31,7 +44,7 @@ func NewEncodedAuthToken(secretStore SecretStore, mattermostUserID, secret strin
 		returnErr = errors.WithMessage(returnErr, "failed to create auth token")
 	}()
 
-	encryptSecret, err := secretStore.EnsureAuthTokenEncryptSecret()
+	encryptSecret, err := ensuredStore.Ensure(StoreKeyTokenSecret, makeAuthTokenEncryptSecret)
 	if err != nil {
 		return "", err
 	}

@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package action
 
 import (
 	"encoding/json"
@@ -9,12 +9,12 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/mattermost/mattermost-server/plugin"
+	mmplugin "github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
 )
 
 type HTTPAction struct {
-	action
+	*BasicAction
 
 	Request            *http.Request
 	ResponseWriter     http.ResponseWriter
@@ -23,14 +23,14 @@ type HTTPAction struct {
 
 var _ Action = (*HTTPAction)(nil)
 
-func NewHTTPActtion(p *Plugin, c *plugin.Context, r *http.Request, w http.ResponseWriter) *HTTPAction {
-	mattermostUserId := r.Header.Get("Mattermost-User-Id")
-
-	return &HTTPAction{
-		action:         *newAction(p, c, mattermostUserId),
+func NewHTTPAction(router *Router, cc ConfiguredContext, pc *mmplugin.Context, r *http.Request, w http.ResponseWriter) Action {
+	a := &HTTPAction{
+		BasicAction:    NewBasicAction(router, cc, pc),
 		Request:        r,
 		ResponseWriter: w,
 	}
+	a.Context().MattermostUserId = r.Header.Get("Mattermost-User-Id")
+	return a
 }
 
 func (httpAction HTTPAction) FormValue(key string) string {
@@ -78,7 +78,7 @@ func (httpAction HTTPAction) RespondRedirect(redirectURL string) error {
 }
 
 func (httpAction HTTPAction) RespondTemplate(templateKey, contentType string, values interface{}) error {
-	t := httpAction.PluginConfig.Templates[templateKey]
+	t := httpAction.context.Templates[templateKey]
 	if t == nil {
 		return httpAction.RespondError(http.StatusInternalServerError, nil,
 			"no template found for %q", templateKey)
@@ -102,15 +102,15 @@ func (httpAction HTTPAction) RespondJSON(value interface{}) error {
 	return nil
 }
 
-func RequireHTTPGet(a Action, ac *ActionContext) error {
-	return httpRequireMethod(a, ac, http.MethodGet)
+func RequireHTTPGet(a Action) error {
+	return httpRequireMethod(a, http.MethodGet)
 }
 
-func RequireHTTPPost(a Action, ac *ActionContext) error {
-	return httpRequireMethod(a, ac, http.MethodPost)
+func RequireHTTPPost(a Action) error {
+	return httpRequireMethod(a, http.MethodPost)
 }
 
-func httpRequireMethod(a Action, ac *ActionContext, method string) error {
+func httpRequireMethod(a Action, method string) error {
 	httpAction, ok := a.(*HTTPAction)
 	if !ok {
 		a.RespondError(http.StatusInternalServerError, nil, "Wrong action type %T, eexpected HTTPAction", a)
@@ -130,7 +130,7 @@ func httpRespondTemplateForPath(a Action, contentType string, values interface{}
 	return a.RespondTemplate(httpAction.Request.URL.Path, contentType, values)
 }
 
-func httpReadRequestBody(a Action, ac *ActionContext) ([]byte, error) {
+func httpReadRequestBody(a Action) ([]byte, error) {
 	httpAction, ok := a.(HTTPAction)
 	if !ok {
 		return nil, errors.Errorf("Wrong action type %T, eexpected HTTPAction", a)

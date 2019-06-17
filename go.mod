@@ -1,4 +1,4 @@
-module github.com/mattermost/mattermost-plugin-jira/
+module github.com/mattermost/mattermost-plugin-jira
 
 go 1.12
 
@@ -22,7 +22,6 @@ require (
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/lib/pq v1.1.1 // indirect
 	github.com/mattermost/gorp v2.0.0+incompatible // indirect
-	github.com/mattermost/mattermost-plugin-jira v1.1.1 // indirect
 	github.com/mattermost/mattermost-server v5.10.1+incompatible
 	github.com/mattermost/viper v0.0.0-20181112161711-f99c30686b86 // indirect
 	github.com/mitchellh/go-testing-interface v1.0.0 // indirect

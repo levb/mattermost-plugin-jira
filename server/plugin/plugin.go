@@ -1,21 +1,28 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package plugin
 
 import (
-	"crypto/rsa"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+
 	"github.com/pkg/errors"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	httpapi "github.com/mattermost/mattermost-plugin-jira/server/api/http"
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
-
 )
 
 const (
@@ -23,64 +30,115 @@ const (
 	PluginIconURL            = "https://s3.amazonaws.com/mattermost-plugin-media/jira.jpg"
 )
 
+type StoredConfig struct {
+	// Bot username
+	UserName string `json:"username"`
+
+	// Legacy 1.x Webhook secret
+	Secret string `json:"secret"`
+}
+
+type Config struct {
+	// StoredConfig caches values from the plugin's settings in the server's config.json
+	StoredConfig
+
+	// ConfiguredContext Caches static values needed to make actions
+	action.ConfiguredContext
+
+	// BotUserID caches the bot user ID (derived from c.UserName)
+	BotUserID string
+}
+
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	CurrentInstanceStore CurrentInstanceStore
-	InstanceStore        InstanceStore
-	UserStore            UserStore
-	SecretStore          SecretStore
-
-	// configuration and a muttex to control concurrent access
-	Config   Config
+	config   Config
 	confLock sync.RWMutex
+
+	Id      string
+	Version string
 }
+
+var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
+	oldSC := p.GetConfig().StoredConfig
+
 	// Load the public configuration fields from the Mattermost server configuration.
-	ec := ExternalConfig{}
-	err := p.API.LoadPluginConfiguration(&ec)
+	newSC := StoredConfig{}
+	err := p.API.LoadPluginConfiguration(&newSC)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load plugin configuration")
 	}
 
+	newBotUserID := ""
+	if newSC.UserName != oldSC.UserName {
+		user, appErr := p.API.GetUserByUsername(newSC.UserName)
+		if appErr != nil {
+			return errors.WithMessage(appErr, fmt.Sprintf("unable to load user %s", newSC.UserName))
+		}
+		newBotUserID = user.Id
+	}
+
 	p.UpdateConfig(func(conf *Config) {
-		conf.ExternalConfig = ec
+		conf.StoredConfig = newSC
+
+		if newBotUserID != "" {
+			conf.BotUserID = newBotUserID
+		}
+
 	})
 
 	return nil
 }
 
 func (p *Plugin) OnActivate() error {
-	conf := p.GetConfig()
-	user, appErr := p.API.GetUserByUsername(conf.UserName)
-	if appErr != nil {
-		return errors.WithMessage(appErr, fmt.Sprintf("OnActivate: unable to find user: %s", conf.UserName))
-	}
+	s := store.NewPluginStore(p.API)
+	instanceStore := instance.NewInstanceStore(s)
 
-	store := NewStore(p)
-	p.CurrentInstanceStore = store
-	p.InstanceStore = store
-	p.UserStore = store
-	p.SecretStore = store
-
-	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), manifest.Id, "server", "dist", "templates")
+	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id, "server", "dist", "templates")
 	templates, err := p.loadTemplates(dir)
 	if err != nil {
 		return errors.WithMessage(err, "OnActivate: failed to load templates")
 	}
 
-	conf = p.UpdateConfig(func(conf *Config) {
-		conf.BotUserID = user.Id
-		conf.SiteURL = *p.API.GetConfig().ServiceSettings.SiteURL
-		conf.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(conf.SiteURL, "_")
-		conf.PluginURLPath = "/plugins/" + manifest.Id
-		conf.PluginURL = strings.TrimRight(conf.SiteURL, "/") + conf.PluginURLPath
-		conf.Templates = templates
+	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
+	p.config = Config{
+		ConfiguredContext: action.ConfiguredContext{
+			API:          p.API,
+			EnsuredStore: store.NewEnsuredStore(s),
+			// UserStore is overwritten by RequireInstance
+			UserStore:            store.NewUserStore(s),
+			InstanceStore:        instanceStore,
+			CurrentInstanceStore: instanceStore,
+
+			// TODO text vs html templates
+			Templates: templates,
+
+			MattermostSiteURL: mattermostSiteURL,
+			PluginId:          p.Id,
+			PluginVersion:     p.Version,
+			PluginKey:         "mattermost_" + regexpNonAlnum.ReplaceAllString(mattermostSiteURL, "_"),
+			PluginURL:         strings.TrimRight(mattermostSiteURL, "/plugins/") + p.Id,
+			PluginURLPath:     "/plugins/" + p.Id,
+		},
+	}
+
+	err = p.OnConfigurationChange()
+	if err != nil {
+		return errors.WithMessage(err, "OnActivate: failed to configure")
+	}
+
+	err = p.API.RegisterCommand(&model.Command{
+		Trigger:          "jira",
+		DisplayName:      "Jira",
+		Description:      "Integration with Jira.",
+		AutoComplete:     true,
+		AutoCompleteDesc: "Available commands: connect, disconnect, create, transition, settings, install cloud/server, uninstall cloud/server, help",
+		AutoCompleteHint: "[command]",
 	})
 
-	err = p.API.RegisterCommand(getCommand())
 	if err != nil {
 		return errors.WithMessage(err, "OnActivate: failed to register command")
 	}
@@ -88,18 +146,12 @@ func (p *Plugin) OnActivate() error {
 	return nil
 }
 
-func (p *Plugin) GetConfig() Config {
-	p.confLock.RLock()
-	defer p.confLock.RUnlock()
-	return p.Config
-}
+func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
+	conf := p.GetConfig()
 
-func (p *Plugin) UpdateConfig(f func(conf *Config)) Config {
-	p.confLock.Lock()
-	defer p.confLock.Unlock()
+	action := action.NewHTTPAction(httpapi.Router, conf.ConfiguredContext, pc, r, w)
 
-	f(&p.Config)
-	return p.Config
+	httpapi.Router.Run(r.URL.Path, action)
 }
 
 func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error) {
@@ -124,4 +176,18 @@ func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error
 		return nil, errors.WithMessage(err, "OnActivate: failed to load templates")
 	}
 	return templates, nil
+}
+
+func (p *Plugin) GetConfig() Config {
+	p.confLock.RLock()
+	defer p.confLock.RUnlock()
+	return p.Config
+}
+
+func (p *Plugin) UpdateConfig(f func(conf *Config)) Config {
+	p.confLock.Lock()
+	defer p.confLock.Unlock()
+
+	f(&p.Config)
+	return p.Config
 }

@@ -4,51 +4,40 @@
 package instance
 
 import (
-	"regexp"
+	"github.com/pkg/errors"
 
 	"github.com/andygrunwald/go-jira"
-)
 
-const (
-	InstanceTypeCloud  = "cloud"
-	InstanceTypeServer = "server"
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
-
-const prefixForInstance = true
 
 const wSEventInstanceStatus = "instance_status"
 
+var ErrWrongInstanceType = errors.New("wrong instance type")
+
 type Instance interface {
+	GetKey() string
+	GetType() string
 	GetDisplayDetails() map[string]string
 	GetMattermostKey() string
-	GetType() string
 	GetURL() string
-	GetUserConnectURL(Config, SecretStore, string) (string, error)
-	GetClient(Config, SecretStore, *JiraUser) (*jira.Client, error)
+	GetUserConnectURL(ots store.OneTimeStore, es store.EnsuredStore, pluginURL string, mattermostUserId string) (string, error)
+	GetClient(store.EnsuredStore, *store.User) (*jira.Client, error)
 }
 
-type instance struct {
-	Key  string
-	Type string
+type BasicInstance struct {
+	InstanceKey  string
+	InstanceType string
 }
 
 type InstanceStatus struct {
 	InstanceInstalled bool `json:"instance_installed"`
 }
 
-var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
-
-func newInstance(typ, key string) *instance {
-	return &instance{
-		Type: typ,
-		Key:  key,
-	}
+func (instance BasicInstance) GetKey() string {
+	return instance.InstanceKey
 }
 
-func (instance instance) GetKey() string {
-	return instance.Key
-}
-
-func (instance instance) GetType() string {
-	return instance.Type
+func (instance BasicInstance) GetType() string {
+	return instance.InstanceType
 }

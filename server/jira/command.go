@@ -1,4 +1,4 @@
-package main
+package jira
 
 import (
 	"fmt"
@@ -361,17 +361,6 @@ func executeWebhookURL(a Action, ac *ActionContext) error {
 		return a.RespondError(0, err)
 	}
 	return a.RespondPrintf("Please use the following URL to set up a Jira webhook: %v", u)
-}
-
-func getCommand() *model.Command {
-	return &model.Command{
-		Trigger:          "jira",
-		DisplayName:      "Jira",
-		Description:      "Integration with Jira.",
-		AutoComplete:     true,
-		AutoCompleteDesc: "Available commands: connect, disconnect, create, transition, settings, install cloud/server, uninstall cloud/server, help",
-		AutoCompleteHint: "[command]",
-	}
 }
 
 func commandResponsef(format string, args ...interface{}) *model.CommandResponse {

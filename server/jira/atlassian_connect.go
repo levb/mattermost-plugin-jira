@@ -1,14 +1,12 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package jira
 
 import (
 	"encoding/json"
 	"net/http"
 )
-
-const userRedirectPageKey = "user-redirect"
 
 var httpACJSON = []ActionFunc{
 	RequireHTTPGet,
