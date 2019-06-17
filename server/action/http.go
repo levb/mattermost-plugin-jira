@@ -23,9 +23,9 @@ type HTTPAction struct {
 
 var _ Action = (*HTTPAction)(nil)
 
-func NewHTTPAction(router *Router, cc ConfiguredContext, pc *mmplugin.Context, r *http.Request, w http.ResponseWriter) Action {
+func NewHTTPAction(router *Router, ac Config, pc *mmplugin.Context, r *http.Request, w http.ResponseWriter) Action {
 	a := &HTTPAction{
-		BasicAction:    NewBasicAction(router, cc, pc),
+		BasicAction:    NewBasicAction(router, ac, pc),
 		Request:        r,
 		ResponseWriter: w,
 	}
@@ -102,22 +102,20 @@ func (httpAction HTTPAction) RespondJSON(value interface{}) error {
 	return nil
 }
 
-func RequireHTTPGet(a Action) error {
-	return httpRequireMethod(a, http.MethodGet)
-}
-
-func RequireHTTPPost(a Action) error {
-	return httpRequireMethod(a, http.MethodPost)
-}
-
-func httpRequireMethod(a Action, method string) error {
+func HTTPLogHandler(a Action) error {
 	httpAction, ok := a.(*HTTPAction)
 	if !ok {
-		a.RespondError(http.StatusInternalServerError, nil, "Wrong action type %T, eexpected HTTPAction", a)
+		return a.RespondError(http.StatusInternalServerError, nil,
+			"Wrong action type %T, eexpected HTTPAction", a)
 	}
-	if httpAction.Request.Method != method {
-		return a.RespondError(http.StatusMethodNotAllowed, nil,
-			"method %s is not allowed, must be %s", httpAction.Request.Method, method)
+	if httpAction.ResponseStatusCode == 0 {
+		httpAction.ResponseStatusCode = http.StatusOK
+	}
+	if httpAction.context.LogErr != nil {
+		a.Infof("http: %v %s %v", httpAction.ResponseStatusCode, httpAction.Request.URL.String(),
+			httpAction.context.LogErr)
+	} else {
+		a.Debugf("http: %v %s", httpAction.ResponseStatusCode, httpAction.Request.URL.String())
 	}
 	return nil
 }
@@ -125,7 +123,8 @@ func httpRequireMethod(a Action, method string) error {
 func httpRespondTemplateForPath(a Action, contentType string, values interface{}) error {
 	httpAction, ok := a.(HTTPAction)
 	if !ok {
-		a.RespondError(http.StatusInternalServerError, nil, "Wrong action type %T, eexpected HTTPAction", a)
+		return a.RespondError(http.StatusInternalServerError, nil,
+			"Wrong action type %T, eexpected HTTPAction", a)
 	}
 	return a.RespondTemplate(httpAction.Request.URL.Path, contentType, values)
 }

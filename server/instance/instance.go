@@ -21,13 +21,14 @@ type Instance interface {
 	GetDisplayDetails() map[string]string
 	GetMattermostKey() string
 	GetURL() string
-	GetUserConnectURL(ots store.OneTimeStore, es store.EnsuredStore, pluginURL string, mattermostUserId string) (string, error)
-	GetClient(store.EnsuredStore, *store.User) (*jira.Client, error)
+	GetUserConnectURL(ots store.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
+	GetClient(string, *store.User) (*jira.Client, error)
 }
 
 type BasicInstance struct {
 	InstanceKey  string
 	InstanceType string
+	InstanceURL  string
 }
 
 type InstanceStatus struct {
@@ -40,4 +41,8 @@ func (instance BasicInstance) GetKey() string {
 
 func (instance BasicInstance) GetType() string {
 	return instance.InstanceType
+}
+
+func (instance BasicInstance) GetURL() string {
+	return instance.InstanceURL
 }

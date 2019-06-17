@@ -12,7 +12,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/pkg/errors"
 )
 
@@ -28,26 +27,14 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func makeAuthTokenEncryptSecret() []byte {
-	newSecret := make([]byte, 32)
-	_, _ = rand.Reader.Read(newSecret)
-	return newSecret
-}
+// func makeAuthTokenEncryptSecret() []byte {
+// 	newSecret := make([]byte, 32)
+// 	_, _ = rand.Reader.Read(newSecret)
+// 	return newSecret
+// }
 
-func NewAuthToken(ensuredStore store.EnsuredStore, mattermostUserID,
-	secret string) (returnToken string, returnErr error) {
-
-	defer func() {
-		if returnErr == nil {
-			return
-		}
-		returnErr = errors.WithMessage(returnErr, "failed to create auth token")
-	}()
-
-	encryptSecret, err := ensuredStore.Ensure(StoreKeyTokenSecret, makeAuthTokenEncryptSecret)
-	if err != nil {
-		return "", err
-	}
+func NewAuthToken(mattermostUserID,
+	secret string, encryptSecret []byte) (returnToken string, returnErr error) {
 
 	t := AuthToken{
 		MattermostUserID: mattermostUserID,
@@ -57,12 +44,12 @@ func NewAuthToken(ensuredStore store.EnsuredStore, mattermostUserID,
 
 	jsonBytes, err := json.Marshal(t)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
 	encrypted, err := encrypt(jsonBytes, encryptSecret)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
 	return encode(encrypted)

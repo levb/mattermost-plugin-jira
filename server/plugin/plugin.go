@@ -13,13 +13,11 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	httpapi "github.com/mattermost/mattermost-plugin-jira/server/api/http"
+	"github.com/mattermost/mattermost-plugin-jira/server/httpapi"
+	"github.com/mattermost/mattermost-plugin-jira/server/instance"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -30,7 +28,7 @@ const (
 	PluginIconURL            = "https://s3.amazonaws.com/mattermost-plugin-media/jira.jpg"
 )
 
-type StoredConfig struct {
+type storedConfig struct {
 	// Bot username
 	UserName string `json:"username"`
 
@@ -38,21 +36,18 @@ type StoredConfig struct {
 	Secret string `json:"secret"`
 }
 
-type Config struct {
+type config struct {
 	// StoredConfig caches values from the plugin's settings in the server's config.json
-	StoredConfig
+	storedConfig
 
-	// ConfiguredContext Caches static values needed to make actions
-	action.ConfiguredContext
-
-	// BotUserID caches the bot user ID (derived from c.UserName)
-	BotUserID string
+	// Config Caches static values needed to make actions
+	actionConfig action.Config
 }
 
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	config   Config
+	config
 	confLock sync.RWMutex
 
 	Id      string
@@ -63,10 +58,10 @@ var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
-	oldSC := p.GetConfig().StoredConfig
+	oldSC := p.getConfig().storedConfig
 
 	// Load the public configuration fields from the Mattermost server configuration.
-	newSC := StoredConfig{}
+	newSC := storedConfig{}
 	err := p.API.LoadPluginConfiguration(&newSC)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load plugin configuration")
@@ -81,13 +76,13 @@ func (p *Plugin) OnConfigurationChange() error {
 		newBotUserID = user.Id
 	}
 
-	p.UpdateConfig(func(conf *Config) {
-		conf.StoredConfig = newSC
-
+	p.updateConfig(func(conf *config) {
+		conf.storedConfig = newSC
+		conf.actionConfig.BotUsername = newSC.UserName
+		conf.actionConfig.WebhookSecret = newSC.Secret
 		if newBotUserID != "" {
-			conf.BotUserID = newBotUserID
+			conf.actionConfig.BotUserID = newBotUserID
 		}
-
 	})
 
 	return nil
@@ -104,8 +99,8 @@ func (p *Plugin) OnActivate() error {
 	}
 
 	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
-	p.config = Config{
-		ConfiguredContext: action.ConfiguredContext{
+	p.config = config{
+		actionConfig: action.Config{
 			API:          p.API,
 			EnsuredStore: store.NewEnsuredStore(s),
 			// UserStore is overwritten by RequireInstance
@@ -147,11 +142,11 @@ func (p *Plugin) OnActivate() error {
 }
 
 func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	conf := p.GetConfig()
+	conf := p.getConfig()
 
-	action := action.NewHTTPAction(httpapi.Router, conf.ConfiguredContext, pc, r, w)
-
-	httpapi.Router.Run(r.URL.Path, action)
+	httpapi.Router.RunRoute(
+		r.URL.Path,
+		action.NewHTTPAction(httpapi.Router, conf.actionConfig, pc, r, w))
 }
 
 func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error) {
@@ -178,16 +173,16 @@ func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error
 	return templates, nil
 }
 
-func (p *Plugin) GetConfig() Config {
+func (p *Plugin) getConfig() config {
 	p.confLock.RLock()
 	defer p.confLock.RUnlock()
-	return p.Config
+	return p.config
 }
 
-func (p *Plugin) UpdateConfig(f func(conf *Config)) Config {
+func (p *Plugin) updateConfig(f func(conf *config)) config {
 	p.confLock.Lock()
 	defer p.confLock.Unlock()
 
-	f(&p.Config)
-	return p.Config
+	f(&p.config)
+	return p.config
 }
