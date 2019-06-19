@@ -142,12 +142,10 @@ func (p *Plugin) OnActivate() error {
 		return errors.WithMessage(err, "OnActivate: failed to register command")
 	}
 
-	fmt.Println("<><> OnActivate done")
 	return nil
 }
 
 func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	fmt.Println("<><> 1")
 	a := action.MakeHTTPAction(app_http.Router, pc, p.getConfig().actionConfig, r, w)
 
 	app_http.Router.RunRoute(r.URL.Path, a)
@@ -156,9 +154,12 @@ func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Re
 func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
 	key, a, err := action.MakeCommandAction(command.Router, pc, p.getConfig().actionConfig, commandArgs)
 	if err != nil {
-		return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
+		if a == nil {
+			return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
+		}
+		a.RespondError(0, err, "command failed")
+		return a.CommandResponse, nil
 	}
-
 	command.Router.RunRoute(key, a)
 	return a.CommandResponse, nil
 }

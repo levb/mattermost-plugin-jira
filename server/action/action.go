@@ -39,11 +39,12 @@ type BasicAction struct {
 	context *Context
 }
 
-func NewBasicAction(router *Router, ac Config, pc *mmplugin.Context) *BasicAction {
+func NewBasicAction(router *Router, ac Config, pc *mmplugin.Context, mattermostUserId string) *BasicAction {
 	return &BasicAction{
 		context: &Context{
-			Config:        ac,
-			PluginContext: pc,
+			Config:           ac,
+			PluginContext:    pc,
+			MattermostUserId: mattermostUserId,
 		},
 	}
 }

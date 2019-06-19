@@ -20,6 +20,7 @@ export default class Plugin {
     async initialize(registry, store) {
         registry.registerReducer(reducers);
 
+        console.log('<><>')
         try {
             await getConnected()(store.dispatch, store.getState);
 

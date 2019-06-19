@@ -22,13 +22,13 @@ type HTTPAction struct {
 
 var _ Action = (*HTTPAction)(nil)
 
-func MakeHTTPAction(router *Router, pc *mmplugin.Context, ac Config, r *http.Request, w http.ResponseWriter) Action {
+func MakeHTTPAction(router *Router, pc *mmplugin.Context, ac Config, r *http.Request, w http.ResponseWriter) *HTTPAction {
+	mattermostUserId := r.Header.Get("Mattermost-User-Id")
 	a := &HTTPAction{
-		BasicAction:    NewBasicAction(router, ac, pc),
+		BasicAction:    NewBasicAction(router, ac, pc, mattermostUserId),
 		Request:        r,
 		ResponseWriter: w,
 	}
-	a.Context().MattermostUserId = r.Header.Get("Mattermost-User-Id")
 	return a
 }
 

@@ -29,8 +29,6 @@ type CommandAction struct {
 }
 
 type CommandMetadata struct {
-	Handler Func
-
 	// MinTotalArgs and MaxTotalArgs are applied to the total number of
 	// whitespace-separated tokens, including the `/jira` and everything after
 	// it.
@@ -44,44 +42,58 @@ type CommandMetadata struct {
 
 var _ Action = (*CommandAction)(nil)
 
-var ErrCommandNotFound = errors.New("command not found")
-
+// MakeCommandAction makes a new CommandAction. In case of an error, it still
+// returns a non-nil CommandAction so that the caller can RespondXXX as needed
 func MakeCommandAction(router *Router,
 	pc *mmplugin.Context, ac Config, commandArgs *model.CommandArgs) (string, *CommandAction, error) {
+
+	a := &CommandAction{
+		BasicAction:     NewBasicAction(router, ac, pc, commandArgs.UserId),
+		CommandArgs:     commandArgs,
+		CommandResponse: &model.CommandResponse{},
+	}
 
 	argv := strings.Fields(commandArgs.Command)
 	if len(argv) == 0 || argv[0] != "/jira" {
 		// argv[0] must be "/jira"
-		return "", nil, errors.New("MakeCommandAction: unreachable code")
+		return "", a, errors.New("MakeCommandAction: unreachable code")
 	}
-	argv = argv[1:]
 	n := len(argv)
 	key := ""
 	var route *Route
-	for ; n > 0; n-- {
-		key = strings.Join(argv[:n], "/")
+	for ; n > 1; n-- {
+		key = strings.Join(argv[1:n], "/")
 		if router.Routes[key] != nil {
 			route = router.Routes[key]
 			break
 		}
 	}
-	if key == "" {
-		return "", nil, ErrCommandNotFound
+	if route == nil {
+		// execute the default
+		return "", a, nil
 	}
+	commandItself := strings.Join(argv, " ")
 	argv = argv[n:]
+	a.Args = argv
 
-	// var md *CommandMetadata
-	// if route.Metadata != nil
-	md, ok := route.Metadata.(*CommandMetadata)
-	if !ok || md == nil {
-		return "", nil, errors.New("MakeCommandAction: misconfigured router")
+	md := &CommandMetadata{}
+	if route.Metadata != nil {
+		md, _ = route.Metadata.(*CommandMetadata)
+		if md == nil {
+			return "", a, errors.Errorf(
+				"MakeCommandAction: misconfigured router: wrong CommandMetadata type %T", route.Metadata)
+		}
 	}
+
 	if md.MinArgc >= 0 && len(argv) < md.MinArgc {
-		return "", nil, errors.Errorf("expected at least %v arguments", md.MinArgc)
+		return "", a, errors.Errorf(
+			"expected at least %v arguments after %q", md.MinArgc, commandItself)
 	}
 	if md.MaxArgc >= 0 && len(argv) > md.MaxArgc {
-		return "", nil, errors.Errorf("expected at most %v arguments", md.MaxArgc)
+		return "", a, errors.Errorf(
+			"expected at most %v arguments after %q", md.MaxArgc, commandItself)
 	}
+	a.CommandMetadata = md
 
 	// Initialize the FormValue map
 	argsMap := map[string]string{}
@@ -91,16 +103,8 @@ func MakeCommandAction(router *Router,
 		}
 		argsMap[fmt.Sprintf("$%v", i+1)] = arg
 	}
+	a.ArgsMap = argsMap
 
-	a := &CommandAction{
-		BasicAction:     NewBasicAction(router, ac, pc),
-		CommandMetadata: md,
-		Args:            argv,
-		ArgsMap:         argsMap,
-		CommandArgs:     commandArgs,
-		CommandResponse: &model.CommandResponse{},
-	}
-	a.context.MattermostUserId = commandArgs.UserId
 	return key, a, nil
 }
 
