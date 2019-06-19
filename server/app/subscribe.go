@@ -1,13 +1,14 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jira
+package app
 
 import (
-	"crypto/subtle"
 	"encoding/json"
+	"io"
 	"net/http"
-	"strings"
+
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -92,15 +93,6 @@ func SubscriptionsFromJson(bytes []byte) (*Subscriptions, error) {
 	}
 
 	return subs, nil
-}
-
-func GetBotUserID(conf Config, api plugin.API) (string, error) {
-	user, appErr := api.GetUserByUsername(conf.UserName)
-	if appErr != nil {
-		return "", errors.Errorf(appErr.Message)
-	}
-
-	return user.Id, nil
 }
 
 func getChannelsSubscribed(api plugin.API, jwh *JiraWebhook) ([]string, error) {
@@ -307,172 +299,115 @@ func atomicModify(api plugin.API, key string, modify func(initialValue []byte) (
 	return nil
 }
 
-var httpSubscribeWebhook = []ActionFunc{
-	RequireHTTPPost,
-	RequireInstance,
-	handleSubscribeWebhook,
-}
-
-func handleSubscribeWebhook(a Action, ac *ActionContext) error {
-	if a.PluginConfig.Secret == "" || a.PluginConfig.UserName == "" {
-		return a.RespondError(http.StatusForbidden, nil,
-			"Jira plugin not configured correctly; must provide Secret and UserName")
-	}
-
-	if subtle.ConstantTimeCompare(
-		[]byte(a.HTTPRequest.URL.Query().Get("secret")),
-		[]byte(a.PluginConfig.Secret)) != 1 {
-		return a.RespondError(http.StatusForbidden, nil,
-			"request URL: secret did not match")
-	}
-
-	wh, jwh, err := ParseWebhook(a.HTTPRequest.Body)
+func ProcessSubscribeWebhook(api plugin.API, userStore store.UserStore, body io.Reader, botUserId string) (int, error) {
+	var err error
+	var status int
+	wh, jwh, err := ParseWebhook(body)
 	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
+		return http.StatusInternalServerError, err
 	}
 
-	botUserId, err := GetBotUserID(a.PluginConfig, a.API)
+	channelIds, err := getChannelsSubscribed(api, jwh)
 	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-
-	channelIds, err := getChannelsSubscribed(a.API, jwh)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
+		return http.StatusInternalServerError, err
 	}
 
 	for _, channelId := range channelIds {
-		if _, status, err1 := wh.PostToChannel(a.API, channelId, botUserId); err1 != nil {
-			return a.RespondError(status, err1)
+		_, status, err = wh.PostToChannel(api, channelId, botUserId)
+		if err != nil {
+			return status, err
 		}
 	}
 
-	_, status, err := wh.PostNotifications(a.PluginConfig, a.API, a.UserStore, a.Instance)
+	_, status, err = wh.PostNotifications(api, userStore, botUserId)
 	if err != nil {
-		return a.RespondError(status, err)
+		return status, err
 	}
 
-	return nil
+	return http.StatusOK, nil
 }
 
-var httpChannelSubscriptions = []ActionFunc{
-	RequireMattermostUserId,
-	handleChannelSubscriptions,
-}
-
-func handleChannelSubscriptions(a Action, ac *ActionContext) error {
-	switch a.HTTPRequest.Method {
-	case http.MethodPost:
-		return handleChannelCreateSubscription(a)
-	case http.MethodDelete:
-		return handleChannelDeleteSubscription(a)
-	case http.MethodGet:
-		return handleChannelGetSubscriptions(a)
-	case http.MethodPut:
-		return handleChannelEditSubscription(a)
-	default:
-		return a.RespondError(http.StatusMethodNotAllowed, nil, "Request: %q is not allowed.", a.HTTPRequest.Method)
-	}
-}
-
-func handleChannelCreateSubscription(a Action, ac *ActionContext) error {
+func CreateChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
 	subscription := ChannelSubscription{}
-	err := json.NewDecoder(a.HTTPRequest.Body).Decode(&subscription)
+	err := json.NewDecoder(body).Decode(&subscription)
 	if err != nil {
-		return a.RespondError(http.StatusBadRequest, err,
-			"failed to decode incoming request")
+		return http.StatusBadRequest,
+			errors.WithMessage(err, "failed to decode incoming request")
 	}
 
 	if len(subscription.ChannelId) != 26 ||
 		len(subscription.Id) != 0 {
-		return a.RespondError(http.StatusBadRequest, nil,
-			"Channel subscription invalid")
+		return http.StatusBadRequest, errors.New("Channel subscription invalid")
 	}
 
-	_, appErr := a.API.GetChannelMember(subscription.ChannelId, a.MattermostUserId)
+	_, appErr := api.GetChannelMember(subscription.ChannelId, mattermostUserId)
 	if appErr != nil {
-		return a.RespondError(http.StatusForbidden, nil,
-			"Not a member of the channel specified")
+		return http.StatusForbidden, errors.New("Not a member of the channel specified")
 	}
 
-	if err := addChannelSubscription(a.API, &subscription); err != nil {
-		a.RespondError(http.StatusInternalServerError, err)
+	if err := addChannelSubscription(api, &subscription); err != nil {
+		return http.StatusInternalServerError, err
 	}
 
-	return a.RespondJSON(map[string]string{"status": "OK"})
+	return http.StatusOK, nil
 }
 
-func handleChannelEditSubscription(a Action, ac *ActionContext) error {
+func EditChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
 	subscription := ChannelSubscription{}
-	err := json.NewDecoder(a.HTTPRequest.Body).Decode(&subscription)
+	err := json.NewDecoder(body).Decode(&subscription)
 	if err != nil {
-		return a.RespondError(http.StatusBadRequest, err,
-			"failed to decode incoming request")
+		return http.StatusBadRequest,
+			errors.WithMessage(err, "failed to decode incoming request")
 	}
 
 	if len(subscription.ChannelId) != 26 ||
 		len(subscription.Id) != 26 {
-		return a.RespondError(http.StatusBadRequest, nil,
-			"Channel subscription invalid")
+		return http.StatusBadRequest, errors.New("Channel subscription invalid")
 	}
 
-	if _, appErr := a.API.GetChannelMember(subscription.ChannelId, a.MattermostUserId); appErr != nil {
-		return a.RespondError(http.StatusForbidden, nil,
-			"Not a member of the channel specified")
+	if _, appErr := api.GetChannelMember(subscription.ChannelId, mattermostUserId); appErr != nil {
+		return http.StatusForbidden,
+			errors.New("Not a member of the channel specified")
 	}
 
-	if err := editChannelSubscription(a.API, &subscription); err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
+	if err := editChannelSubscription(api, &subscription); err != nil {
+		return http.StatusInternalServerError, err
 	}
 
-	return a.RespondJSON(map[string]string{"status": "OK"})
+	return http.StatusOK, nil
 }
 
-func handleChannelDeleteSubscription(a Action, ac *ActionContext) error {
-	// routeAPISubscriptionsChannel has the trailing '/'
-	subscriptionId := strings.TrimPrefix(a.HTTPRequest.URL.Path, routeAPISubscriptionsChannel)
-	if len(subscriptionId) != 26 {
-		return a.RespondError(http.StatusBadRequest, nil,
-			"bad subscription id")
-	}
-
-	subscription, err := getChannelSubscription(a.API, subscriptionId)
+func DeleteChannelSubscription(api plugin.API, mattermostUserId, subscriptionId string) (int, error) {
+	subscription, err := getChannelSubscription(api, subscriptionId)
 	if err != nil {
-		return a.RespondError(http.StatusBadRequest, err, "bad subscription id")
+		return http.StatusBadRequest,
+			errors.WithMessage(err, "bad subscription id")
 	}
 
-	_, appErr := a.API.GetChannelMember(subscription.ChannelId, a.MattermostUserId)
+	_, appErr := api.GetChannelMember(subscription.ChannelId, mattermostUserId)
 	if appErr != nil {
-		return a.RespondError(http.StatusForbidden, nil,
-			"Not a member of the channel specified")
+		return http.StatusForbidden,
+			errors.New("Not a member of the channel specified")
 	}
 
-	if err := removeChannelSubscription(a.API, subscriptionId); err != nil {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"unable to remove channel subscription")
+	if err := removeChannelSubscription(api, subscriptionId); err != nil {
+		return http.StatusInternalServerError,
+			errors.WithMessage(err, "unable to remove channel subscription")
 	}
 
-	return a.RespondJSON(map[string]string{"status": "OK"})
+	return http.StatusOK, nil
 }
 
-func handleChannelGetSubscriptions(a Action, ac *ActionContext) error {
-	// routeAPISubscriptionsChannel has the trailing '/'
-	channelId := strings.TrimPrefix(a.HTTPRequest.URL.Path, routeAPISubscriptionsChannel)
-	if len(channelId) != 26 {
-		return a.RespondError(http.StatusBadRequest, nil,
-			"bad channel id")
+func GetChannelSubscriptions(api plugin.API, mattermostUserId, channelId string) ([]ChannelSubscription, int, error) {
+	if _, appErr := api.GetChannelMember(channelId, mattermostUserId); appErr != nil {
+		return nil, http.StatusForbidden, errors.New("Not a member of the channel specified")
 	}
 
-	if _, appErr := a.API.GetChannelMember(channelId, a.MattermostUserId); appErr != nil {
-		return a.RespondError(http.StatusForbidden, nil,
-			"Not a member of the channel specified")
-	}
-
-	subscriptions, err := getSubscriptionsForChannel(a.API, channelId)
+	subscriptions, err := getSubscriptionsForChannel(api, channelId)
 	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"unable to get channel subscriptions")
+		return nil, http.StatusInternalServerError,
+			errors.WithMessage(err, "unable to get channel subscriptions")
 	}
 
-	return a.RespondJSON(subscriptions)
+	return subscriptions, http.StatusOK, nil
 }

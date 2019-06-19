@@ -7,35 +7,51 @@ import (
 	"strings"
 )
 
+type Route struct {
+	Handler  Func
+	Metadata interface{}
+}
+
 type Router struct {
-	FindHandler    func(route string) Func
+	Routes         map[string]*Route
 	DefaultHandler Func
 	LogHandler     Func
 }
 
-func (ar Router) RunRoute(route string, a Action) {
-	route = strings.TrimRight(route, "/")
+func (router Router) RunRoute(key string, a Action) {
+	key = strings.TrimRight(key, "/")
 
+	var handler Func
 	// See if we have a handler for the exact route match
-	handler := ar.FindHandler(route)
+	route := router.Routes[key]
+	if route != nil {
+		handler = route.Handler
+	}
+
 	if handler == nil {
 		// Look for a subpath match
-		handler = ar.FindHandler(route + "/*")
+		route = router.Routes[key+"/*"]
+		if route != nil {
+			handler = route.Handler
+		}
 	}
 
 	// Look for a /* above
 	for handler == nil {
-		n := strings.LastIndex(route, "/")
+		n := strings.LastIndex(key, "/")
 		if n == -1 {
 			break
 		}
-		handler = ar.FindHandler(route[:n] + "/*")
-		route = route[:n]
+		route = router.Routes[key[:n]+"/*"]
+		if route != nil {
+			handler = route.Handler
+		}
+		key = key[:n]
 	}
 
 	// Use the default, if needed
 	if handler == nil {
-		handler = ar.DefaultHandler
+		handler = router.DefaultHandler
 	}
 
 	// Run the handler
@@ -45,8 +61,8 @@ func (ar Router) RunRoute(route string, a Action) {
 	}
 
 	// Log
-	if ar.LogHandler != nil {
-		_ = ar.LogHandler(a)
+	if router.LogHandler != nil {
+		_ = router.LogHandler(a)
 	}
 }
 

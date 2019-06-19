@@ -6,7 +6,6 @@ package action
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
@@ -23,7 +22,7 @@ type HTTPAction struct {
 
 var _ Action = (*HTTPAction)(nil)
 
-func NewHTTPAction(router *Router, ac Config, pc *mmplugin.Context, r *http.Request, w http.ResponseWriter) Action {
+func MakeHTTPAction(router *Router, pc *mmplugin.Context, ac Config, r *http.Request, w http.ResponseWriter) Action {
 	a := &HTTPAction{
 		BasicAction:    NewBasicAction(router, ac, pc),
 		Request:        r,
@@ -120,23 +119,26 @@ func HTTPLogHandler(a Action) error {
 	return nil
 }
 
-func httpRespondTemplateForPath(a Action, contentType string, values interface{}) error {
+func HTTPRespondTemplate(a Action, contentType string, values interface{}) error {
 	httpAction, ok := a.(HTTPAction)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil,
-			"Wrong action type %T, eexpected HTTPAction", a)
+			"Wrong action type %T, expected HTTPAction", a)
 	}
 	return a.RespondTemplate(httpAction.Request.URL.Path, contentType, values)
 }
 
-func httpReadRequestBody(a Action) ([]byte, error) {
+func HTTPRequest(a Action) (*http.Request, error) {
 	httpAction, ok := a.(HTTPAction)
 	if !ok {
-		return nil, errors.Errorf("Wrong action type %T, eexpected HTTPAction", a)
+		return nil, a.RespondError(http.StatusInternalServerError, nil,
+			"Wrong action type %T, expected HTTPAction", a)
 	}
-	body, err := ioutil.ReadAll(httpAction.Request.Body)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to read request")
+	return httpAction.Request, nil
+}
+
+func NewHTTPRoute(f Func) *Route {
+	return &Route{
+		Handler: f,
 	}
-	return body, nil
 }

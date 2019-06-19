@@ -12,6 +12,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/pkg/errors"
 )
 
@@ -27,14 +28,21 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-// func makeAuthTokenEncryptSecret() []byte {
-// 	newSecret := make([]byte, 32)
-// 	_, _ = rand.Reader.Read(newSecret)
-// 	return newSecret
-// }
+func (cloudInstance JiraCloudInstance) EnsureAuthTokenEncryptSecret(ensuredStore store.EnsuredStore) ([]byte, error) {
 
-func NewAuthToken(mattermostUserID,
-	secret string, encryptSecret []byte) (returnToken string, returnErr error) {
+	newSecret := make([]byte, 32)
+	_, _ = rand.Reader.Read(newSecret)
+	_, err := ensuredStore.Ensure(StoreKeyTokenSecret, func() ([]byte, error) {
+		return newSecret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return newSecret, nil
+}
+
+func (cloudInstance JiraCloudInstance) NewAuthToken(mattermostUserID,
+	secret string) (returnToken string, returnErr error) {
 
 	t := AuthToken{
 		MattermostUserID: mattermostUserID,
@@ -47,7 +55,7 @@ func NewAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	encrypted, err := encrypt(jsonBytes, encryptSecret)
+	encrypted, err := encrypt(jsonBytes, cloudInstance.authTokenEncryptSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
@@ -55,7 +63,7 @@ func NewAuthToken(mattermostUserID,
 	return encode(encrypted)
 }
 
-func ParseAuthToken(encoded string, encryptSecret []byte) (mattermostUserID, tokenSecret string, returnErr error) {
+func (cloudInstance JiraCloudInstance) ParseAuthToken(encoded string) (mattermostUserID, tokenSecret string, returnErr error) {
 	defer func() {
 		if returnErr == nil {
 			return
@@ -70,7 +78,7 @@ func ParseAuthToken(encoded string, encryptSecret []byte) (mattermostUserID, tok
 			return err
 		}
 
-		jsonBytes, err := decrypt(decoded, encryptSecret)
+		jsonBytes, err := decrypt(decoded, cloudInstance.authTokenEncryptSecret)
 		if err != nil {
 			return err
 		}

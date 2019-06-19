@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package plugin
+package main
 
 import (
 	"fmt"
@@ -16,7 +16,8 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/httpapi"
+	"github.com/mattermost/mattermost-plugin-jira/server/app/command"
+	app_http "github.com/mattermost/mattermost-plugin-jira/server/app/http"
 	"github.com/mattermost/mattermost-plugin-jira/server/instance"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-server/model"
@@ -81,7 +82,7 @@ func (p *Plugin) OnConfigurationChange() error {
 		conf.actionConfig.BotUsername = newSC.UserName
 		conf.actionConfig.WebhookSecret = newSC.Secret
 		if newBotUserID != "" {
-			conf.actionConfig.BotUserID = newBotUserID
+			conf.actionConfig.BotUserId = newBotUserID
 		}
 	})
 
@@ -117,6 +118,9 @@ func (p *Plugin) OnActivate() error {
 			PluginKey:         "mattermost_" + regexpNonAlnum.ReplaceAllString(mattermostSiteURL, "_"),
 			PluginURL:         strings.TrimRight(mattermostSiteURL, "/plugins/") + p.Id,
 			PluginURLPath:     "/plugins/" + p.Id,
+
+			// TODO
+			BotIconURL: "",
 		},
 	}
 
@@ -138,15 +142,25 @@ func (p *Plugin) OnActivate() error {
 		return errors.WithMessage(err, "OnActivate: failed to register command")
 	}
 
+	fmt.Println("<><> OnActivate done")
 	return nil
 }
 
 func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	conf := p.getConfig()
+	fmt.Println("<><> 1")
+	a := action.MakeHTTPAction(app_http.Router, pc, p.getConfig().actionConfig, r, w)
 
-	httpapi.Router.RunRoute(
-		r.URL.Path,
-		action.NewHTTPAction(httpapi.Router, conf.actionConfig, pc, r, w))
+	app_http.Router.RunRoute(r.URL.Path, a)
+}
+
+func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
+	key, a, err := action.MakeCommandAction(command.Router, pc, p.getConfig().actionConfig, commandArgs)
+	if err != nil {
+		return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
+	}
+
+	command.Router.RunRoute(key, a)
+	return a.CommandResponse, nil
 }
 
 func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error) {

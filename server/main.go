@@ -4,12 +4,11 @@
 package main
 
 import (
-	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
 
 func main() {
-	mmplugin.ClientMain(&plugin.Plugin{
+	mmplugin.ClientMain(&Plugin{
 		Id:      manifest.Id,
 		Version: manifest.Version,
 	})

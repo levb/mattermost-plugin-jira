@@ -1,7 +1,7 @@
 // See License for license information.
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 
-package jira
+package app
 
 import (
 	"encoding/json"
@@ -72,9 +72,9 @@ func parseWebhookChangeLog(jwh *JiraWebhook) Webhook {
 		case field == "resolution" && to != "" && from == "":
 			return parseWebhookResolved(jwh)
 		case field == "status":
-			return parseWebhookUpdatedField(jwh, eventUpdatedStatus, field, from, to)
+			return parseWebhookUpdatedField(jwh, WebhookEventUpdatedStatus, field, from, to)
 		case field == "priority":
-			return parseWebhookUpdatedField(jwh, eventUpdatedPriority, field, from, to)
+			return parseWebhookUpdatedField(jwh, WebhookEventUpdatedPriority, field, from, to)
 		case field == "summary":
 			return parseWebhookUpdatedSummary(jwh)
 		case field == "description":
@@ -93,7 +93,7 @@ func parseWebhookChangeLog(jwh *JiraWebhook) Webhook {
 }
 
 func parseWebhookCreated(jwh *JiraWebhook) Webhook {
-	wh := newWebhook(jwh, eventCreated, "created")
+	wh := newWebhook(jwh, WebhookEventCreated, "created")
 
 	wh.text = jwh.mdSummaryLink()
 	desc := jwh.mdIssueDescription()
@@ -127,9 +127,9 @@ func parseWebhookCreated(jwh *JiraWebhook) Webhook {
 }
 
 func parseWebhookDeleted(jwh *JiraWebhook) Webhook {
-	wh := newWebhook(jwh, eventDeleted, "deleted")
+	wh := newWebhook(jwh, WebhookEventDeleted, "deleted")
 	if jwh.Issue.Fields != nil && jwh.Issue.Fields.Resolution == nil {
-		wh.eventMask = wh.eventMask | eventDeletedUnresolved
+		wh.eventMask = wh.eventMask | WebhookEventDeletedUnresolved
 	}
 	return wh
 }
@@ -137,7 +137,7 @@ func parseWebhookDeleted(jwh *JiraWebhook) Webhook {
 func parseWebhookCommentCreated(jwh *JiraWebhook) Webhook {
 	wh := &webhook{
 		JiraWebhook: jwh,
-		eventMask:   eventCreatedComment,
+		eventMask:   WebhookEventCreatedComment,
 		headline:    fmt.Sprintf("%s commented on %s", mdUser(&jwh.Comment.UpdateAuthor), jwh.mdKeyLink()),
 		text:        truncate(jwh.Comment.Body, 3000),
 	}
@@ -176,7 +176,7 @@ func parseWebhookCommentCreated(jwh *JiraWebhook) Webhook {
 func parseWebhookCommentDeleted(jwh *JiraWebhook) Webhook {
 	return &webhook{
 		JiraWebhook: jwh,
-		eventMask:   eventDeletedComment,
+		eventMask:   WebhookEventDeletedComment,
 		headline:    fmt.Sprintf("%s deleted comment in %s", mdUser(&jwh.Comment.UpdateAuthor), jwh.mdKeyLink()),
 	}
 }
@@ -184,14 +184,14 @@ func parseWebhookCommentDeleted(jwh *JiraWebhook) Webhook {
 func parseWebhookCommentUpdated(jwh *JiraWebhook) Webhook {
 	return &webhook{
 		JiraWebhook: jwh,
-		eventMask:   eventUpdatedComment,
+		eventMask:   WebhookEventUpdatedComment,
 		headline:    fmt.Sprintf("%s edited comment in %s", mdUser(&jwh.Comment.UpdateAuthor), jwh.mdKeyLink()),
 		text:        truncate(jwh.Comment.Body, 3000),
 	}
 }
 
 func parseWebhookAssigned(jwh *JiraWebhook) Webhook {
-	wh := newWebhook(jwh, eventUpdatedAssignee, "assigned %s to", jwh.mdIssueAssignee())
+	wh := newWebhook(jwh, WebhookEventUpdatedAssignee, "assigned %s to", jwh.mdIssueAssignee())
 	if jwh.Issue.Fields.Assignee == nil {
 		return wh
 	}
@@ -203,11 +203,11 @@ func parseWebhookAssigned(jwh *JiraWebhook) Webhook {
 }
 
 func parseWebhookReopened(jwh *JiraWebhook) Webhook {
-	return newWebhook(jwh, eventUpdatedReopened, "reopened")
+	return newWebhook(jwh, WebhookEventUpdatedReopened, "reopened")
 }
 
 func parseWebhookResolved(jwh *JiraWebhook) Webhook {
-	return newWebhook(jwh, eventUpdatedResolved, "resolved")
+	return newWebhook(jwh, WebhookEventUpdatedResolved, "resolved")
 }
 
 func parseWebhookUpdatedField(jwh *JiraWebhook, eventMask uint64, field, from, to string) Webhook {
@@ -215,13 +215,13 @@ func parseWebhookUpdatedField(jwh *JiraWebhook, eventMask uint64, field, from, t
 }
 
 func parseWebhookUpdatedSummary(jwh *JiraWebhook) Webhook {
-	wh := newWebhook(jwh, eventUpdatedSummary, "renamed")
+	wh := newWebhook(jwh, WebhookEventUpdatedSummary, "renamed")
 	wh.text = jwh.mdSummaryLink()
 	return wh
 }
 
 func parseWebhookUpdatedDescription(jwh *JiraWebhook) Webhook {
-	wh := newWebhook(jwh, eventUpdatedDescription, "edited the description of")
+	wh := newWebhook(jwh, WebhookEventUpdatedDescription, "edited the description of")
 	wh.text = jwh.mdSummaryLink()
 	desc := jwh.mdIssueDescription()
 	if desc != "" {
@@ -233,19 +233,19 @@ func parseWebhookUpdatedDescription(jwh *JiraWebhook) Webhook {
 func parseWebhookUpdatedSprint(jwh *JiraWebhook, to string) Webhook {
 	return &webhook{
 		JiraWebhook: jwh,
-		eventMask:   eventUpdatedSprint,
+		eventMask:   WebhookEventUpdatedSprint,
 		headline:    fmt.Sprintf("%s moved %s to %s", jwh.mdUser(), jwh.mdKeyLink(), to),
 	}
 }
 
 func parseWebhookUpdatedRank(jwh *JiraWebhook, to string) Webhook {
-	return newWebhook(jwh, eventUpdatedRank, to)
+	return newWebhook(jwh, WebhookEventUpdatedRank, to)
 }
 
 func parseWebhookUpdatedAttachments(jwh *JiraWebhook, from, to string) Webhook {
-	return newWebhook(jwh, eventUpdatedAttachment, mdAddRemove(from, to, "attached", "removed attachments"))
+	return newWebhook(jwh, WebhookEventUpdatedAttachment, mdAddRemove(from, to, "attached", "removed attachments"))
 }
 
 func parseWebhookUpdatedLabels(jwh *JiraWebhook, from, to string) Webhook {
-	return newWebhook(jwh, eventUpdatedLabels, mdAddRemove(from, to, "added labels", "removed labels"))
+	return newWebhook(jwh, WebhookEventUpdatedLabels, mdAddRemove(from, to, "added labels", "removed labels"))
 }
