@@ -5,62 +5,24 @@ package http
 
 import (
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/app"
 )
 
 func createIssue(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPPost,
-		app.RequireMattermostUserId,
-		app.RequireInstance,
-		app.RequireBackendUser,
-		app.RequireJiraClient,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
-
+	// TODO
 	return nil
 }
 
 func getCreateIssueMetadata(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPGet,
-		app.RequireMattermostUserId,
-		app.RequireInstance,
-		app.RequireBackendUser,
-		app.RequireJiraClient,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+	// TODO
 	return nil
 }
 
 func getSearchIssues(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPGet,
-		app.RequireMattermostUserId,
-		app.RequireInstance,
-		app.RequireBackendUser,
-		app.RequireJiraClient,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+	// TODO
 	return nil
 }
 
 func attachCommentToIssue(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPPost,
-		app.RequireMattermostUserId,
-		app.RequireInstance,
-		app.RequireBackendUser,
-		app.RequireJiraClient,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+	// TODO
 	return nil
 }

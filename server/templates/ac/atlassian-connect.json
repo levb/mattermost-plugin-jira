@@ -22,11 +22,11 @@
 	"modules": {
 		"generalPages": [
 			{
-				"url": "{{ .RouteACUserRedirectWithToken }}",
+				"url": "{{ .RouteACUserConfirm }}",
 				"name": {
 					"value": "User mapping and configuration page"
 				},
-				"key": "{{ .UserRedirectPageKey }}",
+				"key": "{{ .UserLandingPageKey }}",
 				"location": "none"
 			}
 		]

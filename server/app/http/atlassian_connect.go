@@ -10,35 +10,22 @@ import (
 )
 
 func getACJSON(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPGet,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
-
 	return action.HTTPRespondTemplate(a,
 		"application/json",
 		map[string]string{
-			"BaseURL":                      ac.PluginURL,
-			"RouteACJSON":                  routeACJSON,
-			"RouteACInstalled":             routeACInstalled,
-			"RouteACUninstalled":           routeACUninstalled,
-			"RouteACUserRedirectWithToken": routeACUserRedirectWithToken,
-			"UserRedirectPageKey":          jira_cloud.UserLandingPageKey,
-			"ExternalURL":                  ac.MattermostSiteURL,
-			"PluginKey":                    ac.PluginKey,
+			"BaseURL":            ac.PluginURL,
+			"RouteACJSON":        routeACJSON,
+			"RouteACInstalled":   routeACInstalled,
+			"RouteACUninstalled": routeACUninstalled,
+			"RouteACUserConfirm": routeACUserConfirm,
+			"UserLandingPageKey": jira_cloud.UserLandingPageKey,
+			"ExternalURL":        ac.MattermostSiteURL,
+			"PluginKey":          ac.PluginKey,
 		})
 }
 
 func processACInstalled(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPPost,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {

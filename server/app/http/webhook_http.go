@@ -44,13 +44,6 @@ var eventParamMasks = map[string]uint64{
 }
 
 func processLegacyWebhook(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPPost,
-		app.RequireInstance,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {

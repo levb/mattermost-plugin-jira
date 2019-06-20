@@ -26,17 +26,6 @@ const (
 )
 
 func connectAC(a action.Action) error {
-	err := action.Script{
-		// TODO this is wrong, all 3 are gets, 2 should be posts
-		app.RequireHTTPGet,
-		app.RequireInstance,
-		app.RequireJiraCloudJWT,
-		app.RequireMattermostUserId,
-		app.RequireMattermostUser,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {

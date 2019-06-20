@@ -14,13 +14,6 @@ import (
 )
 
 func processSubscribeWebhook(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPPost,
-		app.RequireInstance,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	httpAction, ok := a.(*action.HTTPAction)
 	if !ok {
@@ -42,12 +35,6 @@ func processSubscribeWebhook(a action.Action) error {
 }
 
 func handleChannelSubscriptions(a action.Action) error {
-	err := action.Script{
-		app.RequireMattermostUserId,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	request, err := action.HTTPRequest(a)
 	if err != nil {
 		return err

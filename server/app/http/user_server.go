@@ -17,15 +17,6 @@ import (
 )
 
 func completeOAuth1(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPGet,
-		app.RequireMattermostUserId,
-		app.RequireMattermostUser,
-		app.RequireInstance,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {

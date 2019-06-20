@@ -11,35 +11,19 @@ import (
 )
 
 func connectUser(a action.Action) error {
-	err := action.Script{
-		app.RequireInstance,
-		app.RequireMattermostUserId,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 
-	redirectURL, status, err := app.GetUserConnectURL(ac.UserStore,
-		ac.OneTimeStore, ac.Instance, ac.PluginURL, ac.MattermostUserId)
+	redirectURL, status, err := app.GetUserConnectURL(
+		ac.UserStore, ac.OneTimeStore, ac.Instance, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err)
 	}
-
 	return a.RespondRedirect(redirectURL)
 }
 
 func disconnectUser(a action.Action) error {
-	err := action.Script{
-		app.RequireInstance,
-		app.RequireMattermostUserId,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
-
 	ac := a.Context()
-	err = app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
+	err := app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -61,13 +45,6 @@ func disconnectUser(a action.Action) error {
 }
 
 func getUserInfo(a action.Action) error {
-	err := action.Script{
-		app.RequireHTTPGet,
-		app.RequireMattermostUserId,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
 	return a.RespondJSON(app.GetUserInfo(ac.InstanceLoader,
 		ac.UserStore,
