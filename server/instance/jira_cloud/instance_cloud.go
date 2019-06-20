@@ -79,7 +79,7 @@ func FromJSON(data, authTokenSecret []byte) (*Instance, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	inst.BasicInstance.InstanceURL = inst.AtlassianSecurityContext.BaseURL
 	inst.authTokenSecret = authTokenSecret
 	return &inst, nil
 }
