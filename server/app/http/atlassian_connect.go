@@ -46,7 +46,7 @@ func processACInstalled(a action.Action) error {
 	}
 
 	status, err := app.ProcessACInstalled(ac.API,
-		ac.InstanceStore, ac.CurrentInstanceStore, ac.EnsuredStore, request.Body)
+		ac.InstanceStore, ac.CurrentInstanceStore, ac.AuthTokenSecret, request.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to process atlassian-connect installed event")

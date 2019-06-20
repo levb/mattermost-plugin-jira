@@ -48,7 +48,7 @@ func completeOAuth1(a action.Action) error {
 		return a.RespondError(http.StatusUnauthorized, nil, "request token mismatch")
 	}
 
-	serverInstance, ok := ac.Instance.(*jira_server.JiraServerInstance)
+	serverInstance, ok := ac.Instance.(*jira_server.Instance)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfiguration, wrong Action type")
 	}
@@ -110,7 +110,7 @@ func getOAuth1PublicKey(a action.Action) error {
 		return err
 	}
 	ac := a.Context()
-	serverInstance, ok := ac.Instance.(*jira_server.JiraServerInstance)
+	serverInstance, ok := ac.Instance.(*jira_server.Instance)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
 	}

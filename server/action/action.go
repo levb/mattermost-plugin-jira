@@ -6,6 +6,7 @@ package action
 import (
 	"fmt"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/config"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
 
@@ -39,10 +40,10 @@ type BasicAction struct {
 	context *Context
 }
 
-func NewBasicAction(router *Router, ac Config, pc *mmplugin.Context, mattermostUserId string) *BasicAction {
+func NewBasicAction(router *Router, conf config.Config, pc *mmplugin.Context, mattermostUserId string) *BasicAction {
 	return &BasicAction{
 		context: &Context{
-			Config:           ac,
+			Config:           conf,
 			PluginContext:    pc,
 			MattermostUserId: mattermostUserId,
 		},

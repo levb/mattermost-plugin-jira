@@ -139,11 +139,14 @@ func RequireInstance(a action.Action) error {
 	if ac.Instance != nil {
 		return nil
 	}
-	be, err := LoadCurrentInstance(ac.CurrentInstanceStore)
+	be, err := ac.InstanceLoader.Current()
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
 	ac.Instance = be
+
+	// Important: overwrite the default UserStore with that where
+	// the keys are prefixed with the instance URL
 	ac.UserStore = instance.NewUserStore(ac.UserStore, be)
 	a.Debugf("action: loaded Jira instance %q", be.GetURL())
 	return nil
@@ -167,7 +170,7 @@ func RequireJiraCloudJWT(a action.Action) error {
 			"no jwt found in the HTTP request")
 	}
 
-	cloudInstance, ok := ac.Instance.(*jira_cloud.JiraCloudInstance)
+	cloudInstance, ok := ac.Instance.(*jira_cloud.Instance)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil,
 			"misconfigured instance type")

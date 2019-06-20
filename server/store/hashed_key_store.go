@@ -34,6 +34,10 @@ func (s hashedKeyStore) Delete(key string) error {
 	return s.store.Delete(hashKey(s.prefix, key))
 }
 
+func (s hashedKeyStore) Ensure(key string, value []byte) ([]byte, error) {
+	return s.store.Ensure(hashKey(s.prefix, key), value)
+}
+
 func hashKey(prefix, hashableKey string) string {
 	if hashableKey == "" {
 		return prefix

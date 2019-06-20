@@ -12,6 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/config"
 	"github.com/mattermost/mattermost-server/model"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
@@ -45,10 +46,10 @@ var _ Action = (*CommandAction)(nil)
 // MakeCommandAction makes a new CommandAction. In case of an error, it still
 // returns a non-nil CommandAction so that the caller can RespondXXX as needed
 func MakeCommandAction(router *Router,
-	pc *mmplugin.Context, ac Config, commandArgs *model.CommandArgs) (string, *CommandAction, error) {
+	pc *mmplugin.Context, conf config.Config, commandArgs *model.CommandArgs) (string, *CommandAction, error) {
 
 	a := &CommandAction{
-		BasicAction:     NewBasicAction(router, ac, pc, commandArgs.UserId),
+		BasicAction:     NewBasicAction(router, conf, pc, commandArgs.UserId),
 		CommandArgs:     commandArgs,
 		CommandResponse: &model.CommandResponse{},
 	}
@@ -173,7 +174,7 @@ func (commandAction *CommandAction) respond(text string) {
 	commandAction.CommandResponse = &model.CommandResponse{
 		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
 		Text:         text,
-		Username:     commandAction.Context().BotUsername,
+		Username:     commandAction.Context().UserName,
 		IconURL:      commandAction.Context().BotIconURL,
 		Type:         model.POST_DEFAULT,
 	}

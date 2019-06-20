@@ -1,6 +1,9 @@
 package app
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -15,6 +18,9 @@ import (
 )
 
 const WebsocketEventInstanceStatus = "instance_status"
+
+const StoreKeyTokenSecret = "token_secret"
+const StoreKeyRSAPrivateKey = "rsa_key"
 
 func CreateBotDMPost(
 	api plugin.API,
@@ -67,7 +73,7 @@ func StoreCurrentInstanceAndNotify(api plugin.API,
 	currentInstanceStore instance.CurrentInstanceStore,
 	instance instance.Instance) error {
 
-	appErr := currentInstanceStore.StoreCurrentInstance(instance)
+	appErr := currentInstanceStore.Store(instance)
 	if appErr != nil {
 		return appErr
 	}
@@ -97,6 +103,38 @@ func parseJiraUsernamesFromText(text string) []string {
 	}
 
 	return usernames
+}
+
+func EnsureRSAPrivateKey(s store.Store) (*rsa.PrivateKey, error) {
+	// Ensure we generate the secrets on first start
+	rsaPrivateKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to generate private key")
+	}
+	rsaPrivateKeyBytes, err := json.Marshal(rsaPrivateKey)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to marshal private key")
+	}
+	newRSAPrivateKeyBytes, err := s.Ensure(StoreKeyRSAPrivateKey, rsaPrivateKeyBytes)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to generate private key")
+	}
+	newRSAPrivateKey := &rsa.PrivateKey{}
+	err = json.Unmarshal(newRSAPrivateKeyBytes, newRSAPrivateKey)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to unmarshal private key")
+	}
+	return rsaPrivateKey, nil
+}
+
+func EnsureAuthTokenSecret(s store.Store) ([]byte, error) {
+	// Ensure we generate the secrets on first start
+	secret := make([]byte, 32)
+	_, err := rand.Reader.Read(secret)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to generate token secret")
+	}
+	return s.Ensure(StoreKeyRSAPrivateKey, secret)
 }
 
 // func parseJiraIssuesFromText(text string, keys []string) []string {

@@ -18,9 +18,9 @@ import (
 
 func ProcessACInstalled(
 	api plugin.API,
-	instanceStore instance.InstanceStore,
+	instanceStore instance.Store,
 	currentInstanceStore instance.CurrentInstanceStore,
-	ensuredStore store.EnsuredStore,
+	authTokenSecret []byte,
 	body io.Reader) (int, error) {
 
 	data, err := ioutil.ReadAll(body)
@@ -36,7 +36,11 @@ func ProcessACInstalled(
 
 	// Only allow this operation once, a Jira instance must already exist
 	// for asc.BaseURL but not Installed.
-	cloudInstance := &jira_cloud.JiraCloudInstance{}
+	cloudInstance := &jira_cloud.Instance{}
+
+	// instanceStore.Load does not perform the migration from v2.0
+	// but it's not needed here, safe to assume the instance is
+	// freshly created
 	err = instanceStore.Load(asc.BaseURL, &cloudInstance)
 	if err == store.ErrNotFound {
 		return http.StatusNotFound,
@@ -51,15 +55,9 @@ func ProcessACInstalled(
 			errors.Errorf("Jira instance %q is already installed", asc.BaseURL)
 	}
 
-	encryptSecret, err := cloudInstance.EnsureAuthTokenEncryptSecret(ensuredStore)
-	if cloudInstance.Installed {
-		return http.StatusForbidden, err
-	}
+	cloudInstance = jira_cloud.New(asc.BaseURL, true, string(data), &asc, authTokenSecret)
 
-	// Create a permanent instance record, also store it as current
-	cloudInstance = jira_cloud.NewCloudInstance(asc.BaseURL, true, string(data), &asc, encryptSecret)
-
-	// StoreInstance also updates the list of known Jira instances
+	// InstanceStore.Store also updates the list of known Jira instances
 	err = instanceStore.Store(cloudInstance)
 	if err != nil {
 		return http.StatusInternalServerError, err

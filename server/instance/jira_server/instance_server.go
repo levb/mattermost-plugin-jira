@@ -6,6 +6,7 @@ package jira_server
 import (
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 
 	"github.com/andygrunwald/go-jira"
@@ -16,17 +17,14 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
-const BackendType = "server"
+const Type = "server"
 
 const keyRSAKey = "rsa_key"
 
 const RouteOAuth1Complete = "/oauth1/complete.html"
 
-type JiraServerInstance struct {
+type Instance struct {
 	instance.BasicInstance
-
-	// The JSON name is v2.0 compatible
-	BackendURL string `json:"JIRAServerURL,omitempty"`
 
 	// The SiteURL may change as we go, so we store the PluginKey when as it was installed
 	MattermostKey string
@@ -35,51 +33,42 @@ type JiraServerInstance struct {
 	rsaPrivateKey *rsa.PrivateKey
 }
 
-var _ instance.Instance = (*JiraServerInstance)(nil)
+var _ instance.Instance = (*Instance)(nil)
 
-func NewServerInstance(jiraURL, mattermostKey string, rsaPrivateKey *rsa.PrivateKey) *JiraServerInstance {
-	return &JiraServerInstance{
+func New(jiraURL, mattermostKey string, rsaPrivateKey *rsa.PrivateKey) *Instance {
+	return &Instance{
 		BasicInstance: instance.BasicInstance{
-			InstanceType: BackendType,
+			InstanceType: Type,
 			InstanceKey:  jiraURL,
+			InstanceURL:  jiraURL,
 		},
 		MattermostKey: mattermostKey,
-		BackendURL:    jiraURL,
 		rsaPrivateKey: rsaPrivateKey,
 	}
 }
 
-// ensureRSAKey () (*rsaPrivateKey, error) {
-// 	data, err := ensuredStore.Ensure(keyRSAKey, makeRSAKey)
-// 	if err != nil {
-// 		return nil, errors.WithMessage(err, "failed to create an OAuth1 config")
-// 	}
+func FromJSON(data []byte, rsaPrivateKey *rsa.PrivateKey) (*Instance, error) {
+	inst := Instance{}
+	err := json.Unmarshal(data, &inst)
+	if err != nil {
+		return nil, err
+	}
 
-// }
-// func makeRSAKey() ([]byte, error) {
-// 	newRSAKey, err := rsa.GenerateKey(rand.Reader, 1024)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return json.Marshal(newRSAKey)
-// }
-
-func (serverInstance JiraServerInstance) GetURL() string {
-	return serverInstance.BackendURL
+	inst.rsaPrivateKey = rsaPrivateKey
+	return &inst, nil
 }
 
-func (serverInstance JiraServerInstance) GetMattermostKey() string {
+func (serverInstance Instance) GetMattermostKey() string {
 	return serverInstance.MattermostKey
 }
 
-func (serverInstance JiraServerInstance) GetDisplayDetails() map[string]string {
+func (serverInstance Instance) GetDisplayDetails() map[string]string {
 	return map[string]string{
 		"MattermostKey": serverInstance.MattermostKey,
 	}
 }
 
-func (serverInstance JiraServerInstance) GetUserConnectURL(otsStore store.OneTimeStore,
+func (serverInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -112,7 +101,7 @@ func (serverInstance JiraServerInstance) GetUserConnectURL(otsStore store.OneTim
 	return authURL.String(), nil
 }
 
-func (serverInstance JiraServerInstance) GetClient(pluginURL string,
+func (serverInstance Instance) GetClient(pluginURL string,
 	user *store.User) (returnClient *jira.Client, returnErr error) {
 
 	defer func() {
@@ -141,7 +130,7 @@ func (serverInstance JiraServerInstance) GetClient(pluginURL string,
 	return jiraClient, nil
 }
 
-func (serverInstance *JiraServerInstance) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
+func (serverInstance *Instance) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
 		ConsumerKey:    serverInstance.MattermostKey,
 		ConsumerSecret: "dontcare",
@@ -155,7 +144,7 @@ func (serverInstance *JiraServerInstance) GetOAuth1Config(pluginURL string) (*oa
 	}, nil
 }
 
-func (serverInstance JiraServerInstance) PublicKeyString() ([]byte, error) {
+func (serverInstance Instance) PublicKeyString() ([]byte, error) {
 	b, err := x509.MarshalPKIXPublicKey(&serverInstance.rsaPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")

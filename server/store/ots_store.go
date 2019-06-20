@@ -29,7 +29,7 @@ type pluginOTSStore struct {
 	TTLSeconds int64
 }
 
-func NewPluginOneTimeStore(api mmplugin.API, ttlSeconds int64) Store {
+func NewPluginOneTimeStore(api mmplugin.API, ttlSeconds int64) OneTimeStore {
 	return &pluginOTSStore{
 		pluginStore: pluginStore{api},
 		TTLSeconds:  ttlSeconds,

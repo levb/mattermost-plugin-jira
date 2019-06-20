@@ -26,9 +26,9 @@ type Instance interface {
 }
 
 type BasicInstance struct {
-	InstanceKey  string
-	InstanceType string
-	InstanceURL  string
+	InstanceKey  string `json:"Key"`
+	InstanceType string `json:"Type"`
+	InstanceURL  string `json:"URL"`
 }
 
 type InstanceStatus struct {

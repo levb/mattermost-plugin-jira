@@ -6,6 +6,7 @@ package jira_cloud
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -21,9 +22,9 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
-const BackendType = "cloud"
+const Type = "cloud"
 
-type JiraCloudInstance struct {
+type Instance struct {
 	instance.BasicInstance
 
 	// Initially a new instance is created with an expiration time. The
@@ -31,16 +32,15 @@ type JiraCloudInstance struct {
 	// then receive a /installed callback that initializes the instance
 	// and makes it permanent. No subsequent /installed will be accepted
 	// for the instance.
-	Installed bool
+	Installed       bool
+	authTokenSecret []byte `json:"none"`
 
 	// For cloud instances (atlassian-connect.json install and user auth)
-	RawAtlassianSecurityContext string
 	*AtlassianSecurityContext   `json:"none"`
-
-	authTokenEncryptSecret []byte
+	RawAtlassianSecurityContext string
 }
 
-var _ instance.Instance = (*JiraCloudInstance)(nil)
+var _ instance.Instance = (*Instance)(nil)
 
 const UserLandingPageKey = "user-redirect"
 
@@ -57,27 +57,38 @@ type AtlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func NewCloudInstance(key string, installed bool, rawASC string,
-	asc *AtlassianSecurityContext, authTokenEncryptSecret []byte) *JiraCloudInstance {
+func New(key string, installed bool, rawASC string,
+	asc *AtlassianSecurityContext, authTokenSecret []byte) *Instance {
 
-	return &JiraCloudInstance{
+	return &Instance{
 		BasicInstance: instance.BasicInstance{
-			InstanceType: "cloud",
+			InstanceType: Type,
 			InstanceKey:  key,
 			InstanceURL:  asc.BaseURL,
 		},
 		Installed:                   installed,
-		RawAtlassianSecurityContext: rawASC,
 		AtlassianSecurityContext:    asc,
-		authTokenEncryptSecret:      authTokenEncryptSecret,
+		RawAtlassianSecurityContext: rawASC,
+		authTokenSecret:             authTokenSecret,
 	}
 }
 
-func (jci JiraCloudInstance) GetMattermostKey() string {
+func FromJSON(data, authTokenSecret []byte) (*Instance, error) {
+	inst := Instance{}
+	err := json.Unmarshal(data, &inst)
+	if err != nil {
+		return nil, err
+	}
+
+	inst.authTokenSecret = authTokenSecret
+	return &inst, nil
+}
+
+func (jci Instance) GetMattermostKey() string {
 	return jci.AtlassianSecurityContext.Key
 }
 
-func (jci JiraCloudInstance) GetDisplayDetails() map[string]string {
+func (jci Instance) GetDisplayDetails() map[string]string {
 	if !jci.Installed {
 		return map[string]string{
 			"Setup": "In progress",
@@ -92,7 +103,7 @@ func (jci JiraCloudInstance) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (cloudInstance JiraCloudInstance) GetUserConnectURL(otsStore store.OneTimeStore,
+func (cloudInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -121,7 +132,7 @@ func (cloudInstance JiraCloudInstance) GetUserConnectURL(otsStore store.OneTimeS
 	), nil
 }
 
-func (jci JiraCloudInstance) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
+func (jci Instance) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
 	oauth2Conf := oauth2_jira.Config{
 		BaseURL: jci.InstanceURL,
 		// TODO replace with ID
@@ -140,7 +151,7 @@ func (jci JiraCloudInstance) GetClient(pluginURL string, user *store.User) (*jir
 }
 
 // Creates a "bot" client with a JWT
-func (jci JiraCloudInstance) getClientForServer() (*jira.Client, error) {
+func (jci Instance) getClientForServer() (*jira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          jci.AtlassianSecurityContext.Key,
 		ClientKey:    jci.AtlassianSecurityContext.ClientKey,
@@ -151,7 +162,7 @@ func (jci JiraCloudInstance) getClientForServer() (*jira.Client, error) {
 	return jira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (jci JiraCloudInstance) JWTFromHTTPRequest(r *http.Request) (
+func (jci Instance) JWTFromHTTPRequest(r *http.Request) (
 	token *jwt.Token, rawToken string, status int, err error) {
 
 	tokenString := r.FormValue("jwt")

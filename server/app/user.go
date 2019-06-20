@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/instance/loader"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 
 	"github.com/pkg/errors"
@@ -51,13 +52,13 @@ func GetUserConnectURL(
 }
 
 func GetUserInfo(
-	currentInstanceStore instance.CurrentInstanceStore,
+	instanceLoader loader.InstanceLoader,
 	userStore store.UserStore,
 	mattermostUserId string,
 ) GetUserInfoResponse {
 
 	resp := GetUserInfoResponse{}
-	instance, err := LoadCurrentInstance(currentInstanceStore)
+	instance, err := instanceLoader.Current()
 	if err == nil {
 		resp.InstanceInstalled = true
 		resp.JIRAURL = instance.GetURL()

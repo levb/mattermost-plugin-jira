@@ -1,6 +1,10 @@
 package command
 
 import (
+	"fmt"
+	"sort"
+	"strconv"
+
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/app"
 )
@@ -37,71 +41,62 @@ var Router = &action.Router{
 		}
 		return nil
 	},
-	DefaultHandler: executeHelp,
+	DefaultHandler: help,
 
 	// MattermostUserID is set for all commands, so no special "Requir" for it
 	Routes: map[string]*action.Route{
-		"connect":    {Handler: commandConnect},
-		"disconnect": {Handler: commandDisconnect},
-		"settings/notifications": {
-			Handler: commandSettingsNotifications,
-			Metadata: &action.CommandMetadata{
-				MinArgc:  1,
-				MaxArgc:  1,
-				ArgNames: []string{"value"},
-			},
-		},
-		// "transition":       commandTransition,
-		// "install/server":   commandInstallServer,
-		// "install/cloud":    commandInstallCloud,
-		// "uninstall/cloud":  commandUninstall,
-		// "uninstall/server": commandUninstall,
-
-		// // used for debugging, uncomment if needed
-		// "webhook":         commandWebhookURL,
-		// "list":            commandList,
-		// "instance/select": commandInstanceSelect,
-		// "instance/delete": commandInstanceDelete,
+		"connect":    action.NewRoute(app.RequireInstance, connect),
+		"disconnect": action.NewRoute(app.RequireBackendUser, disconnect),
+		"settings/notifications/": action.NewRoute(app.RequireJiraClient, notifications).With(
+			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1,
+				ArgNames: []string{"value"}}),
+		"instance/list": action.NewRoute(app.RequireMattermostSysAdmin, list),
+		"instance/select": action.NewRoute(app.RequireMattermostSysAdmin, selectInstance).With(
+			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
+		"instance/delete": action.NewRoute(app.RequireMattermostSysAdmin, deleteInstance).With(
+			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
 	},
+	// 	RequireMattermostSysAdmin,
+	// "transition": {
+	// 	Handler:  commandTransition,
+	// 	Metadata: &action.CommandMetadata{MinArgc: 2, MaxArgc: -1, ArgNames: []string{"key"}},
+	// },
+	// "install/server": {
+	// 	Handler:  commandInstallServer,
+	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
+	// },
+	// "install/cloud": {
+	// 	Handler:  commandInstallCloud,
+	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
+	// },
+	// "uninstall/server": {
+	// 	Handler:  commandUninstallServer,
+	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
+	// },
+	// "uninstall/cloud": {
+	// 	Handler:  commandUninstallCloud,
+	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
+	// },
+	// // used for debugging, uncomment if needed
+	// "webhook":         commandWebhookURL,
 }
 
-// Available settings
-const (
-	settingsNotifications = "notifications"
-)
-
-func executeHelp(a action.Action) error {
+func help(a action.Action) error {
 	return a.RespondPrintf(helpText)
 }
 
-func commandConnect(a action.Action) error {
-	err := action.Script{
-		app.RequireInstance,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+func connect(a action.Action) error {
 	ac := a.Context()
-
 	redirectURL, err := ac.Instance.GetUserConnectURL(ac.OneTimeStore, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
-		a.RespondError(0, err)
+		a.RespondError(0, err, "command failed, please contact your system administrator")
 	}
 	return a.RespondRedirect(redirectURL)
-
 }
 
-func commandDisconnect(a action.Action) error {
-	err := action.Script{
-		app.RequireInstance,
-		app.RequireBackendUser,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+func disconnect(a action.Action) error {
 	ac := a.Context()
-
-	err = app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
+	err := app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(0, err, "Could not complete the **disconnection** request")
 	}
@@ -114,17 +109,9 @@ const (
 	settingOff = "off"
 )
 
-func commandSettingsNotifications(a action.Action) error {
-	err := action.Script{
-		app.RequireBackendUser,
-		app.RequireJiraClient,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
+func notifications(a action.Action) error {
 	ac := a.Context()
 	valueStr := a.FormValue("value")
-
 	value := false
 	switch valueStr {
 	case settingOn:
@@ -135,63 +122,55 @@ func commandSettingsNotifications(a action.Action) error {
 		return a.RespondPrintf(
 			"`/jira settings notifications [value]`\nInvalid value %q. Accepted values are: `on` or `off`.", valueStr)
 	}
-
-	err = app.StoreUserSettingsNotifications(ac.UserStore, ac.MattermostUserId, ac.User, value)
+	err := app.StoreUserSettingsNotifications(ac.UserStore, ac.MattermostUserId, ac.User, value)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
 	return a.RespondPrintf("Settings updated. Notifications %s.", valueStr)
 }
 
-// var commandList = ActionScript{
-// 	RequireMattermostSysAdmin,
-// 	executeList,
-// }
+func list(a action.Action) error {
+	ac := a.Context()
+	known, err := ac.KnownInstancesStore.Load()
+	if err != nil {
+		return a.RespondError(0, err)
+	}
+	if len(known) == 0 {
+		return a.RespondPrintf("(none installed)\n")
+	}
 
-// func executeList(a action.Action) error {
-// 	if len(ac.Args) != 0 {
-// 		return a.RespondPrintf("Please use the correct syntax: `/jira connect`")
-// 	}
-// 	known, err := a.InstanceStore.LoadKnownInstances()
-// 	if err != nil {
-// 		return a.RespondError(0, err)
-// 	}
-// 	if len(known) == 0 {
-// 		return a.RespondPrintf("(none installed)\n")
-// 	}
+	// error not important here, only need to highlight thee current in the list
+	currentInstance, _ := ac.InstanceLoader.Current()
 
-// 	// error not important here, only need to highlight thee current in the list
-// 	currentInstance, _ := a.CurrentInstanceStore.LoadCurrentInstance()
-
-// 	keys := []string{}
-// 	for key := range known {
-// 		keys = append(keys, key)
-// 	}
-// 	sort.Strings(keys)
-// 	text := "Known Jira instances (selected instance is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
-// 	for i, key := range keys {
-// 		instance, err := a.InstanceStore.LoadInstance(key)
-// 		if err != nil {
-// 			text += fmt.Sprintf("|%v|%s|error: %v|\n", i+1, key, err)
-// 			continue
-// 		}
-// 		details := ""
-// 		for k, v := range instance.GetDisplayDetails() {
-// 			details += fmt.Sprintf("%s:%s, ", k, v)
-// 		}
-// 		if len(details) > len(", ") {
-// 			details = details[:len(details)-2]
-// 		} else {
-// 			details = instance.GetType()
-// 		}
-// 		format := "|%v|%s|%s|\n"
-// 		if currentInstance != nil && key == currentInstance.GetURL() {
-// 			format = "| **%v** | **%s** |%s|\n"
-// 		}
-// 		text += fmt.Sprintf(format, i+1, key, details)
-// 	}
-// 	return a.RespondPrintf(text)
-// }
+	keys := []string{}
+	for key := range known {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	text := "Known Jira instances (selected instance is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
+	for i, key := range keys {
+		instance, err := ac.InstanceLoader.Load(key)
+		if err != nil {
+			text += fmt.Sprintf("|%v|%s|error: %v|\n", i+1, key, err)
+			continue
+		}
+		details := ""
+		for k, v := range instance.GetDisplayDetails() {
+			details += fmt.Sprintf("%s:%s, ", k, v)
+		}
+		if len(details) > len(", ") {
+			details = details[:len(details)-2]
+		} else {
+			details = instance.GetType()
+		}
+		format := "|%v|%s|%s|\n"
+		if currentInstance != nil && key == currentInstance.GetURL() {
+			format = "| **%v** | **%s** |%s|\n"
+		}
+		text += fmt.Sprintf(format, i+1, key, details)
+	}
+	return a.RespondPrintf(text)
+}
 
 // var commandInstallCloud = ActionScript{
 // 	RequireMattermostSysAdmin,
@@ -366,96 +345,80 @@ func commandSettingsNotifications(a action.Action) error {
 // 	}
 // }
 
-// var commandInstanceSelect = ActionScript{
-// 	RequireMattermostSysAdmin,
-// 	executeInstanceSelect,
-// }
+func selectInstance(a action.Action) error {
+	ac := a.Context()
+	instanceKey := a.FormValue("n")
+	num, err := strconv.ParseUint(instanceKey, 10, 8)
+	if err == nil {
+		known, loadErr := ac.KnownInstancesStore.Load()
+		if loadErr != nil {
+			return a.RespondError(0, err)
+		}
+		if num < 1 || int(num) > len(known) {
+			return a.RespondError(0, nil,
+				"Wrong instance number %v, must be 1-%v\n", num, len(known))
+		}
 
-// func executeInstanceSelect(a action.Action) error {
-// 	if len(a.Args) != 1 {
-// 		return executeHelp(a)
-// 	}
-// 	instanceKey := a.FormValue("$1")
-// 	num, err := strconv.ParseUint(instanceKey, 10, 8)
-// 	if err == nil {
-// 		known, loadErr := a.InstanceStore.LoadKnownInstances()
-// 		if loadErr != nil {
-// 			return a.RespondError(0, err)
-// 		}
-// 		if num < 1 || int(num) > len(known) {
-// 			return a.RespondError(0, nil,
-// 				"Wrong instance number %v, must be 1-%v\n", num, len(known))
-// 		}
+		keys := []string{}
+		for key := range known {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		instanceKey = keys[num-1]
+	}
 
-// 		keys := []string{}
-// 		for key := range known {
-// 			keys = append(keys, key)
-// 		}
-// 		sort.Strings(keys)
-// 		instanceKey = keys[num-1]
-// 	}
+	instance, err := ac.InstanceLoader.Load(instanceKey)
+	if err != nil {
+		return a.RespondError(0, err)
+	}
+	err = ac.CurrentInstanceStore.Store(instance)
+	if err != nil {
+		return a.RespondError(0, err)
+	}
 
-// 	instance, err := a.InstanceStore.LoadInstance(instanceKey)
-// 	if err != nil {
-// 		return a.RespondError(0, err)
-// 	}
-// 	err = a.CurrentInstanceStore.StoreCurrentInstance(instance)
-// 	if err != nil {
-// 		return a.RespondError(0, err)
-// 	}
+	return list(a)
+}
 
-// 	a.Args = []string{}
-// 	return executeList(a)
-// }
+func deleteInstance(a action.Action) error {
+	ac := a.Context()
+	instanceKey := a.FormValue("n")
 
-// var commandInstanceDelete = ActionScript{
-// 	RequireMattermostSysAdmin,
-// 	executeInstanceDelete,
-// }
+	known, err := ac.KnownInstancesStore.Load()
+	if err != nil {
+		return a.RespondError(0, err)
+	}
+	if len(known) == 0 {
+		return a.RespondError(0, nil,
+			"There are no instances to delete.\n")
+	}
 
-// func executeInstanceDelete(a action.Action) error {
-// 	if len(a.Args) != 1 {
-// 		return executeHelp(a)
-// 	}
-// 	instanceKey := a.FormValue("$1")
+	num, err := strconv.ParseUint(instanceKey, 10, 8)
+	if err == nil {
+		if num < 1 || int(num) > len(known) {
+			return a.RespondError(0, nil,
+				"Wrong instance number %v, must be 1-%v\n", num, len(known)+1)
+		}
 
-// 	known, err := a.InstanceStore.LoadKnownInstances()
-// 	if err != nil {
-// 		return a.RespondError(0, err)
-// 	}
-// 	if len(known) == 0 {
-// 		return a.RespondError(0, nil,
-// 			"There are no instances to delete.\n")
-// 	}
+		keys := []string{}
+		for key := range known {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		instanceKey = keys[num-1]
+	}
 
-// 	num, err := strconv.ParseUint(instanceKey, 10, 8)
-// 	if err == nil {
-// 		if num < 1 || int(num) > len(known) {
-// 			return a.RespondError(0, nil,
-// 				"Wrong instance number %v, must be 1-%v\n", num, len(known)+1)
-// 		}
+	// Remove the instance
+	err = ac.InstanceStore.Delete(instanceKey)
+	if err != nil {
+		return a.RespondError(0, err)
+	}
 
-// 		keys := []string{}
-// 		for key := range known {
-// 			keys = append(keys, key)
-// 		}
-// 		sort.Strings(keys)
-// 		instanceKey = keys[num-1]
-// 	}
+	// if that was our only instance, just respond with an empty list.
+	if len(known) == 1 {
+		return list(a)
+	}
 
-// 	// Remove the instance
-// 	err = a.InstanceStore.DeleteJiraInstance(instanceKey)
-// 	if err != nil {
-// 		return a.RespondError(0, err)
-// 	}
-
-// 	// if that was our only instance, just respond with an empty list.
-// 	if len(known) == 1 {
-// 		a.Args = []string{}
-// 		return executeList(a)
-// 	}
-
-// 	// Select instance #1
-// 	a.Args = []string{"1"}
-// 	return executeInstanceSelect(a)
-// }
+	// Select instance #1
+	// TODO 	return executeInstanceSelect(a)
+	return a.RespondPrintf("<><> DONE")
+}

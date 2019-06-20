@@ -42,24 +42,24 @@ var Router = &action.Router{
 	LogHandler: action.HTTPLogHandler,
 	Routes: map[string]*action.Route{
 		// APIs
-		routeAPICreateIssue:            action.NewHTTPRoute(createIssue),
-		routeAPIAttachCommentToIssue:   action.NewHTTPRoute(attachCommentToIssue),
-		routeAPIGetSearchIssues:        action.NewHTTPRoute(getSearchIssues),
-		routeAPIGetCreateIssueMetadata: action.NewHTTPRoute(getCreateIssueMetadata),
-		routeAPIUserInfo:               action.NewHTTPRoute(getUserInfo),
-		routeAPISubscribeWebhook:       action.NewHTTPRoute(processSubscribeWebhook),
+		routeAPICreateIssue:            action.NewRoute(createIssue),
+		routeAPIAttachCommentToIssue:   action.NewRoute(attachCommentToIssue),
+		routeAPIGetSearchIssues:        action.NewRoute(getSearchIssues),
+		routeAPIGetCreateIssueMetadata: action.NewRoute(getCreateIssueMetadata),
+		routeAPIUserInfo:               action.NewRoute(getUserInfo),
+		routeAPISubscribeWebhook:       action.NewRoute(processSubscribeWebhook),
 
 		// httpChannelSubscriptions already ends in a '/', so adding "*" will
 		// pass all sub-paths up to the handler
-		routeAPISubscriptionsChannel + "*": action.NewHTTPRoute(handleChannelSubscriptions),
+		routeAPISubscriptionsChannel + "*": action.NewRoute(handleChannelSubscriptions),
 
 		// Incoming webhooks
-		routeIncomingWebhook:    action.NewHTTPRoute(processLegacyWebhook),
-		routeIncomingIssueEvent: action.NewHTTPRoute(processLegacyWebhook),
+		routeIncomingWebhook:    action.NewRoute(processLegacyWebhook),
+		routeIncomingIssueEvent: action.NewRoute(processLegacyWebhook),
 
 		// Atlassian Connect application
-		routeACInstalled: action.NewHTTPRoute(processACInstalled),
-		routeACJSON:      action.NewHTTPRoute(getACJSON),
+		routeACInstalled: action.NewRoute(processACInstalled),
+		routeACJSON:      action.NewRoute(getACJSON),
 
 		// User connect and disconnect URLs
 		// routeUserConnect:    httpUserConnect,

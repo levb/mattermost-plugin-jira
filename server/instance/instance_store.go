@@ -4,9 +4,8 @@
 package instance
 
 import (
-	"github.com/pkg/errors"
-
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/pkg/errors"
 )
 
 const disablePrefixForInstance = false
@@ -17,32 +16,47 @@ const (
 	prefixInstance     = "jira_instance_"
 )
 
-type InstanceStore interface {
+type Store interface {
 	Store(Instance) error
 	Delete(string) error
 	Load(string, interface{}) error
 	LoadRaw(string) ([]byte, error)
+}
 
-	CurrentInstanceStore
+type KnownInstancesStore interface {
+	Store(map[string]string) error
+	Load() (map[string]string, error)
 }
 
 type CurrentInstanceStore interface {
-	StoreCurrentInstance(Instance) error
-	LoadCurrentInstanceRaw() ([]byte, error)
+	Store(Instance) error
+	LoadRaw() ([]byte, error)
 }
 
 type instanceStore struct {
-	currentStore store.Store
-	store        store.Store
+	currentInstanceStore CurrentInstanceStore
+	knownInstancesStore  KnownInstancesStore
+	store                store.Store
 }
 
-var _ InstanceStore = (*instanceStore)(nil)
+var _ Store = (*instanceStore)(nil)
 
-func NewInstanceStore(s store.Store) InstanceStore {
-	return &instanceStore{
-		currentStore: s,
-		store:        store.NewHashedKeyStore(s, prefixInstance),
+type knownInstancesStore struct {
+	store store.Store
+}
+
+var _ KnownInstancesStore = (*knownInstancesStore)(nil)
+
+func NewInstanceStore(s store.Store) (Store, CurrentInstanceStore, KnownInstancesStore) {
+	ks := &knownInstancesStore{s}
+	cs := &currentInstanceStore{s}
+	is := &instanceStore{
+		currentInstanceStore: cs,
+		knownInstancesStore:  ks,
+		store:                store.NewHashedKeyStore(s, prefixInstance),
 	}
+
+	return is, cs, ks
 }
 
 func (s instanceStore) Load(key string, instanceRef interface{}) error {
@@ -64,12 +78,12 @@ func (s instanceStore) Store(instance Instance) (returnErr error) {
 	}
 
 	// Update known instances
-	known, err := s.LoadKnownInstances()
+	known, err := s.knownInstancesStore.Load()
 	if err != nil {
 		return err
 	}
 	known[instance.GetURL()] = instance.GetType()
-	err = s.StoreKnownInstances(known)
+	err = s.knownInstancesStore.Store(known)
 	if err != nil {
 		return err
 	}
@@ -90,12 +104,12 @@ func (s instanceStore) Delete(key string) (returnErr error) {
 	}
 
 	// Update known instances
-	known, err := s.LoadKnownInstances()
+	known, err := s.knownInstancesStore.Load()
 	if err != nil {
 		return err
 	}
 	delete(known, key)
-	err = s.StoreKnownInstances(known)
+	err = s.knownInstancesStore.Store(known)
 	if err != nil {
 		return err
 	}
@@ -116,7 +130,7 @@ func (s instanceStore) Delete(key string) (returnErr error) {
 	return nil
 }
 
-func (s instanceStore) StoreKnownInstances(known map[string]string) error {
+func (s knownInstancesStore) Store(known map[string]string) error {
 	err := store.StoreJSON(s.store, keyKnownInstances, known)
 	if err != nil {
 		return errors.WithMessagef(err,
@@ -125,7 +139,7 @@ func (s instanceStore) StoreKnownInstances(known map[string]string) error {
 	return nil
 }
 
-func (s instanceStore) LoadKnownInstances() (map[string]string, error) {
+func (s knownInstancesStore) Load() (map[string]string, error) {
 	known := map[string]string{}
 	err := store.LoadJSON(s.store, keyKnownInstances, &known)
 	if err != nil {
@@ -134,7 +148,13 @@ func (s instanceStore) LoadKnownInstances() (map[string]string, error) {
 	return known, nil
 }
 
-func (s instanceStore) StoreCurrentInstance(instance Instance) (returnErr error) {
+type currentInstanceStore struct {
+	store store.Store
+}
+
+var _ CurrentInstanceStore = (*currentInstanceStore)(nil)
+
+func (s currentInstanceStore) Store(instance Instance) (returnErr error) {
 	defer func() {
 		if returnErr == nil {
 			return
@@ -147,6 +167,6 @@ func (s instanceStore) StoreCurrentInstance(instance Instance) (returnErr error)
 	return nil
 }
 
-func (s instanceStore) LoadCurrentInstanceRaw() ([]byte, error) {
+func (s currentInstanceStore) LoadRaw() ([]byte, error) {
 	return s.store.Load(keyCurrentInstance)
 }

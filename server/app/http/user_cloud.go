@@ -42,7 +42,7 @@ func connectAC(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	cloudInstance, ok := ac.Instance.(*jira_cloud.JiraCloudInstance)
+	cloudInstance, ok := ac.Instance.(*jira_cloud.Instance)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
 	}
@@ -97,7 +97,7 @@ func connectAC(a action.Action) error {
 	})
 }
 
-func parseACTokens(cloudInstance *jira_cloud.JiraCloudInstance,
+func parseACTokens(cloudInstance *jira_cloud.Instance,
 	backendJWT *jwt.Token, mmtoken, mattermostUserId string) (
 	user *store.User, secret string, status int, err error) {
 

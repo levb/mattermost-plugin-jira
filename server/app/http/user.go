@@ -69,7 +69,7 @@ func getUserInfo(a action.Action) error {
 		return err
 	}
 	ac := a.Context()
-	return a.RespondJSON(app.GetUserInfo(ac.CurrentInstanceStore,
+	return a.RespondJSON(app.GetUserInfo(ac.InstanceLoader,
 		ac.UserStore,
 		ac.MattermostUserId,
 	))

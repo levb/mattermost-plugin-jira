@@ -8,8 +8,19 @@ import (
 )
 
 type Route struct {
-	Handler  Func
+	Script   Script
 	Metadata interface{}
+}
+
+func NewRoute(ff ...Func) *Route {
+	return &Route{
+		Script: Script(ff),
+	}
+}
+
+func (r *Route) With(metadata interface{}) *Route {
+	r.Metadata = metadata
+	return r
 }
 
 type Router struct {
@@ -21,18 +32,18 @@ type Router struct {
 func (router Router) RunRoute(key string, a Action) {
 	key = strings.TrimRight(key, "/")
 
-	var handler Func
+	var handler Script
 	// See if we have a handler for the exact route match
 	route := router.Routes[key]
 	if route != nil {
-		handler = route.Handler
+		handler = route.Script
 	}
 
 	if handler == nil {
 		// Look for a subpath match
 		route = router.Routes[key+"/*"]
 		if route != nil {
-			handler = route.Handler
+			handler = route.Script
 		}
 	}
 
@@ -44,18 +55,18 @@ func (router Router) RunRoute(key string, a Action) {
 		}
 		route = router.Routes[key[:n]+"/*"]
 		if route != nil {
-			handler = route.Handler
+			handler = route.Script
 		}
 		key = key[:n]
 	}
 
 	// Use the default, if needed
 	if handler == nil {
-		handler = router.DefaultHandler
+		handler = Script{router.DefaultHandler}
 	}
 
 	// Run the handler
-	err := handler(a)
+	err := handler.Run(a)
 	if err != nil {
 		return
 	}

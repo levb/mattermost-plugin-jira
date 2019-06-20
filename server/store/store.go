@@ -15,6 +15,7 @@ type Store interface {
 	Load(key string) ([]byte, error)
 	Store(key string, data []byte) error
 	Delete(key string) error
+	Ensure(string, []byte) ([]byte, error)
 }
 
 type pluginStore struct {
@@ -56,6 +57,34 @@ func (s pluginStore) Delete(key string) error {
 		return errors.WithMessagef(appErr, "failed plugin KVdelete %q", key)
 	}
 	return nil
+}
+
+func (s pluginStore) Ensure(key string, newValue []byte) ([]byte, error) {
+	value, err := s.Load(key)
+	switch err {
+	case nil:
+		return value, nil
+	case ErrNotFound:
+		break
+	default:
+		return nil, err
+	}
+
+	if len(value) == 0 && len(newValue) != 0 {
+		// Do not return upon an error from Store(), try to Load again
+		err = s.Store(key, newValue)
+		if err == nil {
+			value = newValue
+		}
+	}
+
+	// If we weren't able to save a new key above, another server must have beat us to it. Get the
+	// key from the database, and if that fails, error out.
+	if value == nil {
+		return s.Load(key)
+	}
+
+	return value, nil
 }
 
 func LoadJSON(s Store, key string, v interface{}) (returnErr error) {

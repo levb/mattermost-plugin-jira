@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/config"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
 )
@@ -22,10 +23,10 @@ type HTTPAction struct {
 
 var _ Action = (*HTTPAction)(nil)
 
-func MakeHTTPAction(router *Router, pc *mmplugin.Context, ac Config, r *http.Request, w http.ResponseWriter) *HTTPAction {
+func MakeHTTPAction(router *Router, pc *mmplugin.Context, conf config.Config, r *http.Request, w http.ResponseWriter) *HTTPAction {
 	mattermostUserId := r.Header.Get("Mattermost-User-Id")
 	a := &HTTPAction{
-		BasicAction:    NewBasicAction(router, ac, pc, mattermostUserId),
+		BasicAction:    NewBasicAction(router, conf, pc, mattermostUserId),
 		Request:        r,
 		ResponseWriter: w,
 	}
@@ -135,10 +136,4 @@ func HTTPRequest(a Action) (*http.Request, error) {
 			"Wrong action type %T, expected HTTPAction", a)
 	}
 	return httpAction.Request, nil
-}
-
-func NewHTTPRoute(f Func) *Route {
-	return &Route{
-		Handler: f,
-	}
 }
