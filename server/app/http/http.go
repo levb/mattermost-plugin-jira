@@ -9,6 +9,7 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/app"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/mattermost/mattermost-plugin-jira/server/filters"
 	"github.com/mattermost/mattermost-plugin-jira/server/instance/jira_server"
 )
 
@@ -43,106 +44,106 @@ var Router = &action.Router{
 	Routes: map[string]*action.Route{
 		// APIs
 		routeAPIGetCreateIssueMetadata: action.NewRoute(
-			app.RequireHTTPGet,
-			app.RequireMattermostUserId,
-			app.RequireInstance,
-			app.RequireBackendUser,
-			app.RequireJiraClient,
+			filters.RequireHTTPGet,
+			filters.RequireMattermostUserId,
+			filters.RequireInstance,
+			filters.RequireBackendUser,
+			filters.RequireJiraClient,
 			getCreateIssueMetadata,
 		),
 		routeAPICreateIssue: action.NewRoute(
-			app.RequireHTTPPost,
-			app.RequireMattermostUserId,
-			app.RequireInstance,
-			app.RequireBackendUser,
-			app.RequireJiraClient,
+			filters.RequireHTTPPost,
+			filters.RequireMattermostUserId,
+			filters.RequireInstance,
+			filters.RequireBackendUser,
+			filters.RequireJiraClient,
 			createIssue,
 		),
 		routeAPIAttachCommentToIssue: action.NewRoute(
-			app.RequireHTTPPost,
-			app.RequireMattermostUserId,
-			app.RequireInstance,
-			app.RequireBackendUser,
-			app.RequireJiraClient,
+			filters.RequireHTTPPost,
+			filters.RequireMattermostUserId,
+			filters.RequireInstance,
+			filters.RequireBackendUser,
+			filters.RequireJiraClient,
 			attachCommentToIssue,
 		),
 		routeAPIGetSearchIssues: action.NewRoute(
-			app.RequireHTTPGet,
-			app.RequireMattermostUserId,
-			app.RequireInstance,
-			app.RequireBackendUser,
-			app.RequireJiraClient,
+			filters.RequireHTTPGet,
+			filters.RequireMattermostUserId,
+			filters.RequireInstance,
+			filters.RequireBackendUser,
+			filters.RequireJiraClient,
 			getSearchIssues,
 		),
 		routeAPIUserInfo: action.NewRoute(
-			app.RequireHTTPGet,
-			app.RequireMattermostUserId,
+			filters.RequireHTTPGet,
+			filters.RequireMattermostUserId,
 			getUserInfo,
 		),
 		routeAPISubscribeWebhook: action.NewRoute(
-			app.RequireHTTPPost,
-			app.RequireInstance,
+			filters.RequireHTTPPost,
+			filters.RequireInstance,
 			processSubscribeWebhook,
 		),
 
 		// httpChannelSubscriptions already ends in a '/', so adding "*" will
 		// pass all sub-paths up to the handler
 		routeAPISubscriptionsChannel + "*": action.NewRoute(
-			app.RequireMattermostUserId,
+			filters.RequireMattermostUserId,
 			handleChannelSubscriptions,
 		),
 
 		// Incoming webhooks
 		routeIncomingWebhook: action.NewRoute(
-			app.RequireHTTPPost,
-			app.RequireInstance,
+			filters.RequireHTTPPost,
+			filters.RequireInstance,
 			processLegacyWebhook,
 		),
 		routeIncomingIssueEvent: action.NewRoute(
-			app.RequireHTTPPost,
-			app.RequireInstance,
+			filters.RequireHTTPPost,
+			filters.RequireInstance,
 			processLegacyWebhook,
 		),
 
 		// Atlassian Connect application
 		routeACInstalled: action.NewRoute(
-			app.RequireHTTPPost,
+			filters.RequireHTTPPost,
 			processACInstalled,
 		),
 		routeACJSON: action.NewRoute(
-			app.RequireHTTPGet,
+			filters.RequireHTTPGet,
 			getACJSON,
 		),
 
 		// User connect and disconnect URLs
 		routeUserConnect: action.NewRoute(
-			app.RequireInstance,
-			app.RequireMattermostUserId,
+			filters.RequireInstance,
+			filters.RequireMattermostUserId,
 			connectUser,
 		),
 		routeUserDisconnect: action.NewRoute(
-			app.RequireInstance,
-			app.RequireMattermostUserId,
-			app.RequireMattermostUser,
+			filters.RequireInstance,
+			filters.RequireMattermostUserId,
+			filters.RequireMattermostUser,
 			disconnectUser,
 		),
 
 		// Atlassian Connect user mapping
 		routeACUser: action.NewRoute(
 			// TODO this is wrong, all 3 are gets, 2 should be posts
-			app.RequireHTTPGet,
-			app.RequireInstance,
-			app.RequireJiraCloudJWT,
-			app.RequireMattermostUserId,
-			app.RequireMattermostUser,
+			filters.RequireHTTPGet,
+			filters.RequireInstance,
+			filters.RequireJiraCloudJWT,
+			filters.RequireMattermostUserId,
+			filters.RequireMattermostUser,
 			connectAC),
 
 		// Oauth1 (Jira Server) user mapping
 		routeOAuth1Complete: action.NewRoute(
-			app.RequireHTTPGet,
-			app.RequireMattermostUserId,
-			app.RequireMattermostUser,
-			app.RequireInstance,
+			filters.RequireHTTPGet,
+			filters.RequireMattermostUserId,
+			filters.RequireMattermostUser,
+			filters.RequireInstance,
 			completeOAuth1),
 	},
 }

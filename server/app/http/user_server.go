@@ -11,6 +11,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/app"
+	"github.com/mattermost/mattermost-plugin-jira/server/filters"
 	"github.com/mattermost/mattermost-plugin-jira/server/instance/jira_server"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-server/model"
@@ -93,9 +94,9 @@ func completeOAuth1(a action.Action) error {
 
 func getOAuth1PublicKey(a action.Action) error {
 	err := action.Script{
-		app.RequireHTTPGet,
-		app.RequireInstance,
-		app.RequireMattermostUserId,
+		filters.RequireHTTPGet,
+		filters.RequireInstance,
+		filters.RequireMattermostUserId,
 	}.Run(a)
 	if err != nil {
 		return err

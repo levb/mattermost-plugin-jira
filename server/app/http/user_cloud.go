@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/app"
+	"github.com/mattermost/mattermost-plugin-jira/server/filters"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/instance/jira_cloud"
 
@@ -56,7 +57,7 @@ func connectAC(a action.Action) error {
 		a.Debugf("Stored and notified: %s %+v", ac.MattermostUserId, ac.User)
 
 	case routeACUserDisconnected:
-		err = app.RequireBackendUser(a)
+		err = filters.RequireBackendUser(a)
 		if err != nil {
 			return err
 		}

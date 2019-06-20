@@ -7,6 +7,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/app"
+	"github.com/mattermost/mattermost-plugin-jira/server/filters"
 )
 
 const helpText = "###### Mattermost Jira Plugin - Slash Command Help\n" +
@@ -45,15 +46,15 @@ var Router = &action.Router{
 
 	// MattermostUserID is set for all commands, so no special "Requir" for it
 	Routes: map[string]*action.Route{
-		"connect":    action.NewRoute(app.RequireInstance, connect),
-		"disconnect": action.NewRoute(app.RequireBackendUser, disconnect),
-		"settings/notifications/": action.NewRoute(app.RequireJiraClient, notifications).With(
+		"connect":    action.NewRoute(filters.RequireInstance, connect),
+		"disconnect": action.NewRoute(filters.RequireBackendUser, disconnect),
+		"settings/notifications/": action.NewRoute(filters.RequireJiraClient, notifications).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1,
 				ArgNames: []string{"value"}}),
-		"instance/list": action.NewRoute(app.RequireMattermostSysAdmin, list),
-		"instance/select": action.NewRoute(app.RequireMattermostSysAdmin, selectInstance).With(
+		"instance/list": action.NewRoute(filters.RequireMattermostSysAdmin, list),
+		"instance/select": action.NewRoute(filters.RequireMattermostSysAdmin, selectInstance).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
-		"instance/delete": action.NewRoute(app.RequireMattermostSysAdmin, deleteInstance).With(
+		"instance/delete": action.NewRoute(filters.RequireMattermostSysAdmin, deleteInstance).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
 	},
 	// 	RequireMattermostSysAdmin,
