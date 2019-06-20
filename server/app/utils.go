@@ -134,7 +134,7 @@ func EnsureAuthTokenSecret(s store.Store) ([]byte, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to generate token secret")
 	}
-	return s.Ensure(StoreKeyRSAPrivateKey, secret)
+	return s.Ensure(StoreKeyTokenSecret, secret)
 }
 
 // func parseJiraIssuesFromText(text string, keys []string) []string {

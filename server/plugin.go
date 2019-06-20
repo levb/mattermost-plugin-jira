@@ -46,10 +46,12 @@ func (p *Plugin) OnActivate() error {
 
 	rsaPrivateKey, err := app.EnsureRSAPrivateKey(s)
 	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
 	authTokenSecret, err := app.EnsureAuthTokenSecret(s)
 	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
 	instanceLoader := loader.New(instanceStore, currentInstanceStore, rsaPrivateKey, authTokenSecret)
@@ -58,10 +60,9 @@ func (p *Plugin) OnActivate() error {
 	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id, "server", "dist", "templates")
 	templates, err := p.loadTemplates(dir)
 	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate: failed to load templates")
 	}
-
-	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
 
 	p.updateConfig(func(conf *config.Config) {
 		conf.RSAPrivateKey = rsaPrivateKey
@@ -76,11 +77,8 @@ func (p *Plugin) OnActivate() error {
 		conf.OneTimeStore = ots
 
 		conf.Templates = templates
-		conf.MattermostSiteURL = mattermostSiteURL
 		conf.PluginId = p.Id
 		conf.PluginVersion = p.Version
-		conf.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(mattermostSiteURL, "_")
-		conf.PluginURL = strings.TrimRight(mattermostSiteURL, "/plugins/") + p.Id
 		conf.PluginURLPath = "/plugins/" + p.Id
 	})
 
@@ -98,6 +96,7 @@ func (p *Plugin) OnActivate() error {
 		AutoCompleteHint: "[command]",
 	})
 	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate: failed to register command")
 	}
 
@@ -112,13 +111,18 @@ func (p *Plugin) OnConfigurationChange() error {
 	newSC := config.StoredConfig{}
 	err := p.API.LoadPluginConfiguration(&newSC)
 	if err != nil {
-		return errors.WithMessage(err, "failed to load plugin configuration")
+		err = errors.WithMessage(err, "failed to load plugin configuration")
+		p.API.LogError(err.Error())
+		return err
 	}
+
+	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
 
 	newBotUserID := ""
 	if newSC.UserName != oldSC.UserName {
 		user, appErr := p.API.GetUserByUsername(newSC.UserName)
 		if appErr != nil {
+			p.API.LogError(appErr.Error())
 			return errors.WithMessage(appErr, fmt.Sprintf("unable to load user %s", newSC.UserName))
 		}
 		newBotUserID = user.Id
@@ -126,6 +130,11 @@ func (p *Plugin) OnConfigurationChange() error {
 
 	p.updateConfig(func(conf *config.Config) {
 		conf.StoredConfig = newSC
+		conf.MattermostSiteURL = mattermostSiteURL
+		conf.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(conf.MattermostSiteURL, "_")
+		conf.PluginURLPath = "/plugins/" + manifest.Id
+		conf.PluginURL = strings.TrimRight(conf.MattermostSiteURL, "/") + conf.PluginURLPath
+
 		if newBotUserID != "" {
 			conf.BotUserId = newBotUserID
 		}
@@ -144,6 +153,7 @@ func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandAr
 	key, a, err := action.MakeCommandAction(command.Router, pc, p.getConfig(), commandArgs)
 	if err != nil {
 		if a == nil {
+			p.API.LogError(err.Error())
 			return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
 		}
 		a.RespondError(0, err, "command failed")
@@ -164,7 +174,6 @@ func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error
 		}
 		template, err := template.ParseFiles(path)
 		if err != nil {
-			p.API.LogError(fmt.Sprintf("OnActivate: failed to parse template %s: %v", path, err))
 			return nil
 		}
 		key := path[len(dir):]

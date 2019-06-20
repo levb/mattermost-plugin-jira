@@ -68,7 +68,7 @@ func (router Router) RunRoute(key string, a Action) {
 	// Run the handler
 	err := handler.Run(a)
 	if err != nil {
-		return
+		a.Context().LogErr = err
 	}
 
 	// Log
@@ -86,7 +86,6 @@ func (script Script) Run(a Action) error {
 		}
 		err := f(a)
 		if err != nil {
-			a.Context().LogErr = err
 			return err
 		}
 	}

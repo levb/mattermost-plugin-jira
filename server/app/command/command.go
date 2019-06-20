@@ -89,7 +89,7 @@ func connect(a action.Action) error {
 	ac := a.Context()
 	redirectURL, err := ac.Instance.GetUserConnectURL(ac.OneTimeStore, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
-		a.RespondError(0, err, "command failed, please contact your system administrator")
+		return a.RespondError(0, err, "command failed, please contact your system administrator")
 	}
 	return a.RespondRedirect(redirectURL)
 }
