@@ -5,7 +5,10 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"path"
 	"regexp"
+	"strings"
 
 	// "github.com/andygrunwald/go-jira"
 	"github.com/pkg/errors"
@@ -21,6 +24,31 @@ const WebsocketEventInstanceStatus = "instance_status"
 
 const StoreKeyTokenSecret = "token_secret"
 const StoreKeyRSAPrivateKey = "rsa_key"
+
+func normalizeInstallURL(jiraURL string) (string, error) {
+	u, err := url.Parse(jiraURL)
+	if err != nil {
+		return "", err
+	}
+	if u.Host == "" {
+		ss := strings.Split(u.Path, "/")
+		if len(ss) > 0 && ss[0] != "" {
+			u.Host = ss[0]
+			u.Path = path.Join(ss[1:]...)
+		}
+		u, err = url.Parse(u.String())
+		if err != nil {
+			return "", err
+		}
+	}
+	if u.Host == "" {
+		return "", errors.Errorf("Invalid URL, no hostname: %q", jiraURL)
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	return strings.TrimSuffix(u.String(), "/"), nil
+}
 
 func CreateBotDMPost(
 	api plugin.API,
