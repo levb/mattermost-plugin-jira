@@ -16,9 +16,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//
-
-func ProcessACInstalled(
+func ProcessJiraCloudInstalled(
 	api plugin.API,
 	instanceStore instance.Store,
 	currentInstanceStore instance.CurrentInstanceStore,

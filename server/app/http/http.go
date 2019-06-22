@@ -14,26 +14,36 @@ import (
 )
 
 const (
-	routeACInstalled               = "/ac/installed"
-	routeACJSON                    = "/ac/atlassian-connect.json"
-	routeACUninstalled             = "/ac/uninstalled"
-	routeACUser                    = "/ac/*"
-	routeACUserConfirm             = "/ac/user_confirm.html"
-	routeACUserConnected           = "/ac/user_connected.html"
-	routeACUserDisconnected        = "/ac/user_disconnected.html"
+	// APIs for the webapp
 	routeAPIAttachCommentToIssue   = "/api/v2/attach-comment-to-issue"
+	routeAPIChannelSubscriptions   = "/api/v2/subscriptions/channel/" // trailing '/' on purpose
 	routeAPICreateIssue            = "/api/v2/create-issue"
 	routeAPIGetCreateIssueMetadata = "/api/v2/get-create-issue-metadata"
 	routeAPIGetSearchIssues        = "/api/v2/get-search-issues"
-	routeAPISubscribeWebhook       = "/api/v2/webhook"
-	routeAPISubscriptionsChannel   = "/api/v2/subscriptions/channel/" // trailing '/' on purpose
-	routeAPIUserInfo               = "/api/v2/userinfo"
-	routeIncomingIssueEvent        = "/issue_event"
-	routeIncomingWebhook           = app.RouteIncomingWebhook
-	routeOAuth1Complete            = jira_server.RouteOAuth1Complete
-	routeOAuth1PublicKey           = "/oauth1/public_key.html"
-	routeUserConnect               = "/user/connect"
-	routeUserDisconnect            = "/user/disconnect"
+	routeAPIUser                   = "/api/v2/userinfo"
+	routeAPIUserSettings           = "/api/v2/settingsinfo"
+
+	// Generic user connect/disconnect endpoints
+	routeUserConnect    = "/user/connect"
+	routeUserDisconnect = "/user/disconnect"
+
+	// Jira incoming webhooks
+	routeWebhookJira           = app.RouteIncomingWebhook
+	routeWebhookJiraIssueEvent = "/issue_event"
+	routeWebhookJiraSubscribe  = "/api/v2/webhook"
+
+	// Jira Cloud specific routes
+	routeJiraCloudInstalled        = "/ac/installed"
+	routeJiraCloudInstallJSON      = "/ac/atlassian-connect.json"
+	routeJiraCloudUninstalled      = "/ac/uninstalled"
+	routeJiraCloudUser             = "/ac/*"
+	routeJiraCloudUserConfirm      = "/ac/user_confirm.html"
+	routeJiraCloudUserConnected    = "/ac/user_connected.html"
+	routeJiraCloudUserDisconnected = "/ac/user_disconnected.html"
+
+	// Jira Server specific routes
+	routeJiraServerOAuth1Complete  = jira_server.RouteOAuth1Complete
+	routeJiraServerOAuth1PublicKey = "/oauth1/public_key.html"
 )
 
 var Router = &action.Router{
@@ -75,44 +85,44 @@ var Router = &action.Router{
 			filters.RequireJiraClient,
 			getSearchIssues,
 		),
-		routeAPIUserInfo: action.NewRoute(
+		routeAPIUser: action.NewRoute(
 			filters.RequireHTTPGet,
 			filters.RequireMattermostUserId,
 			getUserInfo,
 		),
-		routeAPISubscribeWebhook: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireInstance,
-			processSubscribeWebhook,
-		),
 
 		// httpChannelSubscriptions already ends in a '/', so adding "*" will
 		// pass all sub-paths up to the handler
-		routeAPISubscriptionsChannel + "*": action.NewRoute(
+		routeAPIChannelSubscriptions + "*": action.NewRoute(
 			filters.RequireMattermostUserId,
 			handleChannelSubscriptions,
 		),
 
 		// Incoming webhooks
-		routeIncomingWebhook: action.NewRoute(
+		routeWebhookJiraSubscribe: action.NewRoute(
+			filters.RequireHTTPPost,
+			filters.RequireInstance,
+			processSubscribeWebhook,
+		),
+		routeWebhookJira: action.NewRoute(
 			filters.RequireHTTPPost,
 			filters.RequireInstance,
 			processLegacyWebhook,
 		),
-		routeIncomingIssueEvent: action.NewRoute(
+		routeWebhookJiraIssueEvent: action.NewRoute(
 			filters.RequireHTTPPost,
 			filters.RequireInstance,
 			processLegacyWebhook,
 		),
 
 		// Atlassian Connect application
-		routeACInstalled: action.NewRoute(
+		routeJiraCloudInstalled: action.NewRoute(
 			filters.RequireHTTPPost,
-			processACInstalled,
+			processJiraCloudInstalled,
 		),
-		routeACJSON: action.NewRoute(
+		routeJiraCloudInstallJSON: action.NewRoute(
 			filters.RequireHTTPGet,
-			getACJSON,
+			getJiraCloudInstallJSON,
 		),
 
 		// User connect and disconnect URLs
@@ -129,21 +139,21 @@ var Router = &action.Router{
 		),
 
 		// Atlassian Connect user mapping
-		routeACUser: action.NewRoute(
+		routeJiraCloudUser: action.NewRoute(
 			// TODO this is wrong, all 3 are gets, 2 should be posts
 			filters.RequireHTTPGet,
 			filters.RequireInstance,
 			filters.RequireJiraCloudJWT,
 			filters.RequireMattermostUserId,
 			filters.RequireMattermostUser,
-			connectAC),
+			connectJiraCloudUser),
 
 		// Oauth1 (Jira Server) user mapping
-		routeOAuth1Complete: action.NewRoute(
+		routeJiraServerOAuth1Complete: action.NewRoute(
 			filters.RequireHTTPGet,
 			filters.RequireMattermostUserId,
 			filters.RequireMattermostUser,
 			filters.RequireInstance,
-			completeOAuth1),
+			completeJiraServerOAuth1),
 	},
 }

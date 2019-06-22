@@ -9,30 +9,30 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/instance/jira_cloud"
 )
 
-func getACJSON(a action.Action) error {
+func getJiraCloudInstallJSON(a action.Action) error {
 	ac := a.Context()
 	return action.HTTPRespondTemplate(a,
 		"application/json",
 		map[string]string{
 			"BaseURL":            ac.PluginURL,
-			"RouteACJSON":        routeACJSON,
-			"RouteACInstalled":   routeACInstalled,
-			"RouteACUninstalled": routeACUninstalled,
-			"RouteACUserConfirm": routeACUserConfirm,
+			"RouteACJSON":        routeJiraCloudInstallJSON,
+			"RouteACInstalled":   routeJiraCloudInstalled,
+			"RouteACUninstalled": routeJiraCloudUninstalled,
+			"RouteACUserConfirm": routeJiraCloudUserConfirm,
 			"UserLandingPageKey": jira_cloud.UserLandingPageKey,
 			"ExternalURL":        ac.MattermostSiteURL,
 			"PluginKey":          ac.PluginKey,
 		})
 }
 
-func processACInstalled(a action.Action) error {
+func processJiraCloudInstalled(a action.Action) error {
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {
 		return err
 	}
 
-	status, err := app.ProcessACInstalled(ac.API,
+	status, err := app.ProcessJiraCloudInstalled(ac.API,
 		ac.InstanceStore, ac.CurrentInstanceStore, ac.AuthTokenSecret, request.Body)
 	if err != nil {
 		return a.RespondError(status, err,

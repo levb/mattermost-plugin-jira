@@ -17,7 +17,7 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 )
 
-func completeOAuth1(a action.Action) error {
+func completeJiraServerOAuth1(a action.Action) error {
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {
@@ -92,7 +92,7 @@ func completeOAuth1(a action.Action) error {
 	})
 }
 
-func getOAuth1PublicKey(a action.Action) error {
+func getJiraServerOAuth1PublicKey(a action.Action) error {
 	err := action.Script{
 		filters.RequireHTTPGet,
 		filters.RequireInstance,

@@ -76,7 +76,7 @@ func editChannelSubscription(a action.Action, ac *action.Context, request *http.
 
 func deleteChannelSubscription(a action.Action, ac *action.Context, request *http.Request) error {
 	// routeAPISubscriptionsChannel has the trailing '/'
-	subscriptionId := strings.TrimPrefix(request.URL.Path, routeAPISubscriptionsChannel)
+	subscriptionId := strings.TrimPrefix(request.URL.Path, routeAPIChannelSubscriptions)
 	if len(subscriptionId) != 26 {
 		return a.RespondError(http.StatusBadRequest, nil,
 			"bad subscription id")
@@ -92,7 +92,7 @@ func deleteChannelSubscription(a action.Action, ac *action.Context, request *htt
 
 func getChannelSubscriptions(a action.Action, ac *action.Context, request *http.Request) error {
 	// routeAPISubscriptionsChannel has the trailing '/'
-	channelId := strings.TrimPrefix(request.URL.Path, routeAPISubscriptionsChannel)
+	channelId := strings.TrimPrefix(request.URL.Path, routeAPIChannelSubscriptions)
 	if len(channelId) != 26 {
 		return a.RespondError(http.StatusBadRequest, nil,
 			"bad channel id")

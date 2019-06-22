@@ -26,7 +26,7 @@ const (
 	argMMToken = "mm_token"
 )
 
-func connectAC(a action.Action) error {
+func connectJiraCloudUser(a action.Action) error {
 	ac := a.Context()
 	request, err := action.HTTPRequest(a)
 	if err != nil {
@@ -38,13 +38,13 @@ func connectAC(a action.Action) error {
 	}
 
 	mmtoken := a.FormValue(argMMToken)
-	user, secret, status, err := parseACTokens(cloudInstance, ac.BackendJWT, mmtoken, ac.MattermostUserId)
+	user, secret, status, err := parseTokens(cloudInstance, ac.BackendJWT, mmtoken, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err, "failed to parse tokens")
 	}
 
 	switch request.URL.Path {
-	case routeACUserConnected:
+	case routeJiraCloudUserConnected:
 		var storedSecret []byte
 		storedSecret, err = ac.OneTimeStore.Load(ac.MattermostUserId)
 		if err != nil {
@@ -56,7 +56,7 @@ func connectAC(a action.Action) error {
 		err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Instance, ac.MattermostUserId, user)
 		a.Debugf("Stored and notified: %s %+v", ac.MattermostUserId, ac.User)
 
-	case routeACUserDisconnected:
+	case routeJiraCloudUserDisconnected:
 		err = filters.RequireBackendUser(a)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func connectAC(a action.Action) error {
 		err = app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
 		a.Debugf("Deleted and notified: %s %+v", ac.MattermostUserId, ac.User)
 
-	case routeACUserConfirm:
+	case routeJiraCloudUserConfirm:
 	}
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err, "(dis)connect failed")
@@ -80,8 +80,8 @@ func connectAC(a action.Action) error {
 		JiraDisplayName       string
 		MattermostDisplayName string
 	}{
-		DisconnectSubmitURL:   path.Join(ac.PluginURLPath, routeACUserDisconnected),
-		ConnectSubmitURL:      path.Join(ac.PluginURLPath, routeACUserConnected),
+		DisconnectSubmitURL:   path.Join(ac.PluginURLPath, routeJiraCloudUserDisconnected),
+		ConnectSubmitURL:      path.Join(ac.PluginURLPath, routeJiraCloudUserConnected),
 		ArgJiraJWT:            argJiraJWT,
 		ArgMMToken:            argMMToken,
 		MMToken:               mmtoken,
@@ -90,7 +90,7 @@ func connectAC(a action.Action) error {
 	})
 }
 
-func parseACTokens(cloudInstance *jira_cloud.Instance,
+func parseTokens(cloudInstance *jira_cloud.Instance,
 	backendJWT *jwt.Token, mmtoken, mattermostUserId string) (
 	user *store.User, secret string, status int, err error) {
 
