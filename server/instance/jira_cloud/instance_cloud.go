@@ -1,38 +1,48 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package jira_cloud
 
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 
+	"github.com/pkg/errors"
+
 	"github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/pkg/errors"
 	ajwt "github.com/rbriski/atlassian-jwt"
 	oauth2_jira "golang.org/x/oauth2/jira"
+
+	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
-type jiraCloudInstance struct {
-	*JIRAInstance
+const Type = "cloud"
+
+type Instance struct {
+	instance.BasicInstance
 
 	// Initially a new instance is created with an expiration time. The
 	// admin is expected to upload it to the Jira instance, and we will
 	// then receive a /installed callback that initializes the instance
 	// and makes it permanent. No subsequent /installed will be accepted
 	// for the instance.
-	Installed bool
+	Installed       bool
+	authTokenSecret []byte `json:"none"`
 
 	// For cloud instances (atlassian-connect.json install and user auth)
-	RawAtlassianSecurityContext string
 	*AtlassianSecurityContext   `json:"none"`
+	RawAtlassianSecurityContext string
 }
 
-var _ Instance = (*jiraCloudInstance)(nil)
+var _ instance.Instance = (*Instance)(nil)
+
+const UserLandingPageKey = "user-redirect"
 
 type AtlassianSecurityContext struct {
 	Key            string `json:"key"`
@@ -47,32 +57,38 @@ type AtlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func NewJIRACloudInstance(p *Plugin, key string, installed bool, rawASC string, asc *AtlassianSecurityContext) Instance {
-	return &jiraCloudInstance{
-		JIRAInstance:                NewJIRAInstance(p, JIRATypeCloud, key),
+func New(key string, installed bool, rawASC string,
+	asc *AtlassianSecurityContext, authTokenSecret []byte) *Instance {
+
+	return &Instance{
+		BasicInstance: instance.BasicInstance{
+			InstanceType: Type,
+			InstanceKey:  key,
+			InstanceURL:  asc.BaseURL,
+		},
 		Installed:                   installed,
-		RawAtlassianSecurityContext: rawASC,
 		AtlassianSecurityContext:    asc,
+		RawAtlassianSecurityContext: rawASC,
+		authTokenSecret:             authTokenSecret,
 	}
 }
 
-type withCloudInstanceFunc func(jci *jiraCloudInstance, w http.ResponseWriter, r *http.Request) (int, error)
-
-func withCloudInstance(p *Plugin, w http.ResponseWriter, r *http.Request, f withCloudInstanceFunc) (int, error) {
-	return withInstance(p.currentInstanceStore, w, r, func(ji Instance, w http.ResponseWriter, r *http.Request) (int, error) {
-		jci, ok := ji.(*jiraCloudInstance)
-		if !ok {
-			return http.StatusBadRequest, errors.New("Must be a JIRA Cloud instance, is " + ji.GetType())
-		}
-		return f(jci, w, r)
-	})
+func FromJSON(data, authTokenSecret []byte) (*Instance, error) {
+	inst := Instance{}
+	err := json.Unmarshal(data, &inst)
+	if err != nil {
+		return nil, err
+	}
+	inst.BasicInstance.InstanceURL = inst.AtlassianSecurityContext.BaseURL
+	inst.authTokenSecret = authTokenSecret
+	return &inst, nil
 }
 
-func (jci jiraCloudInstance) GetMattermostKey() string {
+func (jci Instance) GetMattermostKey() string {
 	return jci.AtlassianSecurityContext.Key
 }
 
-func (jci jiraCloudInstance) GetDisplayDetails() map[string]string {
+func (jci Instance) GetDisplayDetails() map[string]string {
 	if !jci.Installed {
 		return map[string]string{
 			"Setup": "In progress",
@@ -87,53 +103,40 @@ func (jci jiraCloudInstance) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (jci jiraCloudInstance) GetUserConnectURL(mattermostUserId string) (string, error) {
+func (cloudInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
+	pluginURL, mattermostUserId string) (string, error) {
+
 	randomBytes := make([]byte, 32)
 	_, err := rand.Read(randomBytes)
 	if err != nil {
 		return "", err
 	}
 	secret := fmt.Sprintf("%x", randomBytes)
-	err = jci.Plugin.otsStore.StoreOneTimeSecret(mattermostUserId, secret)
+	err = otsStore.Store(mattermostUserId, []byte(secret))
 	if err != nil {
 		return "", err
 	}
-
-	token, err := jci.Plugin.NewEncodedAuthToken(mattermostUserId, secret)
+	token, err := cloudInstance.NewAuthToken(mattermostUserId, secret)
 	if err != nil {
 		return "", err
 	}
 
 	v := url.Values{}
-	v.Add(argMMToken, token)
+	v.Add(ArgMMToken, token)
 	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
-		jci.GetURL(), jci.GetURL(), jci.AtlassianSecurityContext.Key, userRedirectPageKey, v.Encode()), nil
+		cloudInstance.InstanceURL,
+		cloudInstance.InstanceURL,
+		cloudInstance.AtlassianSecurityContext.Key,
+		UserLandingPageKey,
+		v.Encode(),
+	), nil
 }
 
-func (jci jiraCloudInstance) GetURL() string {
-	return jci.AtlassianSecurityContext.BaseURL
-}
-
-func (jci jiraCloudInstance) GetJIRAClient(jiraUser JIRAUser) (*jira.Client, error) {
-	client, _, err := jci.getJIRAClientForUser(jiraUser)
-	if err == nil {
-		return client, nil
-	}
-
-	//TODO decide if we ever need this as the default client
-	// client, err = jci.getJIRAClientForServer()
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to get Jira client for user "+jiraUser.Name)
-	}
-
-	return client, nil
-}
-
-// Creates a client for acting on behalf of a user
-func (jci jiraCloudInstance) getJIRAClientForUser(jiraUser JIRAUser) (*jira.Client, *http.Client, error) {
+func (jci Instance) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
 	oauth2Conf := oauth2_jira.Config{
-		BaseURL: jci.GetURL(),
-		Subject: jiraUser.Name,
+		BaseURL: jci.InstanceURL,
+		// TODO replace with ID
+		Subject: user.Name,
 	}
 
 	oauth2Conf.Config.ClientID = jci.AtlassianSecurityContext.OAuthClientId
@@ -144,11 +147,11 @@ func (jci jiraCloudInstance) getJIRAClientForUser(jiraUser JIRAUser) (*jira.Clie
 	httpClient := oauth2Conf.Client(context.Background())
 
 	jiraClient, err := jira.NewClient(httpClient, oauth2Conf.BaseURL)
-	return jiraClient, httpClient, err
+	return jiraClient, err
 }
 
 // Creates a "bot" client with a JWT
-func (jci jiraCloudInstance) getJIRAClientForServer() (*jira.Client, error) {
+func (jci Instance) getClientForServer() (*jira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          jci.AtlassianSecurityContext.Key,
 		ClientKey:    jci.AtlassianSecurityContext.ClientKey,
@@ -159,27 +162,25 @@ func (jci jiraCloudInstance) getJIRAClientForServer() (*jira.Client, error) {
 	return jira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (jci jiraCloudInstance) parseHTTPRequestJWT(r *http.Request) (*jwt.Token, string, error) {
-	err := r.ParseForm()
-	if err != nil {
-		return nil, "", errors.WithMessage(err, "failed to parse request")
-	}
-	tokenString := r.Form.Get("jwt")
+func (jci Instance) JWTFromHTTPRequest(r *http.Request) (
+	token *jwt.Token, rawToken string, status int, err error) {
+
+	tokenString := r.FormValue("jwt")
 	if tokenString == "" {
-		return nil, "", errors.New("no jwt in the request")
+		return nil, "", http.StatusBadRequest, errors.New("no jwt found in the HTTP request")
 	}
 
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err = jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New(
-				fmt.Sprintf("unsupported signing method: %v", token.Header["alg"]))
+			return nil, errors.Errorf(
+				"unsupported signing method: %v", token.Header["alg"])
 		}
 		// HMAC secret is a []byte
 		return []byte(jci.AtlassianSecurityContext.SharedSecret), nil
 	})
 	if err != nil || !token.Valid {
-		return nil, "", errors.WithMessage(err, "failed to validate JWT")
+		return nil, "", http.StatusUnauthorized, errors.WithMessage(err, "failed to validatte JWT")
 	}
 
-	return token, tokenString, nil
+	return token, tokenString, http.StatusOK, nil
 }

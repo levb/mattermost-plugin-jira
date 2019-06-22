@@ -4,156 +4,198 @@
 package main
 
 import (
-	"crypto/rsa"
 	"fmt"
+	"net/http"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
-	"time"
 
 	"github.com/pkg/errors"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/mattermost/mattermost-plugin-jira/server/app"
+	"github.com/mattermost/mattermost-plugin-jira/server/app/command"
+	app_http "github.com/mattermost/mattermost-plugin-jira/server/app/http"
+	"github.com/mattermost/mattermost-plugin-jira/server/config"
+	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/instance/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 )
-
-const (
-	PluginMattermostUsername = "Jira Plugin"
-	PluginIconURL            = "https://s3.amazonaws.com/mattermost-plugin-media/jira.jpg"
-)
-
-type externalConfig struct {
-	// Bot username
-	UserName string `json:"username"`
-
-	// Setting to turn on/off the webapp components of this plugin
-	EnableJiraUI bool `json:"enablejiraui"`
-
-	// Legacy 1.x Webhook secret
-	Secret string `json:"secret"`
-}
-
-const currentInstanceTTL = 1 * time.Second
-
-type config struct {
-	// externalConfig caches values from the plugin's settings in the server's config.json
-	externalConfig
-
-	// Cached actual bot user ID (derived from c.UserName)
-	botUserID string
-
-	// Cached current Jira instance. A non-0 expires indicates the presence
-	// of a value. A nil value means there is no instance available.
-	currentInstance        Instance
-	currentInstanceExpires time.Time
-}
 
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	// configuration and a muttex to control concurrent access
-	conf     config
+	config   config.Config
 	confLock sync.RWMutex
 
-	currentInstanceStore CurrentInstanceStore
-	instanceStore        InstanceStore
-	userStore            UserStore
-	otsStore             OTSStore
-	secretsStore         SecretsStore
-
-	// Generated once, then cached in the database, and here deserialized
-	RSAKey *rsa.PrivateKey `json:",omitempty"`
-
-	// templates are loaded on startup
-	templates map[string]*template.Template
+	Id      string
+	Version string
 }
 
-func (p *Plugin) getConfig() config {
-	p.confLock.RLock()
-	defer p.confLock.RUnlock()
-	return p.conf
-}
-
-func (p *Plugin) updateConfig(f func(conf *config)) config {
-	p.confLock.Lock()
-	defer p.confLock.Unlock()
-
-	f(&p.conf)
-	return p.conf
-}
-
-// OnConfigurationChange is invoked when configuration changes may have been made.
-func (p *Plugin) OnConfigurationChange() error {
-	// Load the public configuration fields from the Mattermost server configuration.
-	ec := externalConfig{}
-	err := p.API.LoadPluginConfiguration(&ec)
-	if err != nil {
-		return errors.WithMessage(err, "failed to load plugin configuration")
-	}
-
-	p.updateConfig(func(conf *config) {
-		conf.externalConfig = ec
-	})
-
-	return nil
-}
+var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 
 func (p *Plugin) OnActivate() error {
-	conf := p.getConfig()
-	user, appErr := p.API.GetUserByUsername(conf.UserName)
-	if appErr != nil {
-		return errors.WithMessage(appErr, fmt.Sprintf("OnActivate: unable to find user: %s", conf.UserName))
+	s := store.NewPluginStore(p.API)
+	ots := store.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
+	instanceStore, currentInstanceStore, knownInstanceStore := instance.NewInstanceStore(s)
+
+	rsaPrivateKey, err := app.EnsureRSAPrivateKey(s)
+	if err != nil {
+		p.API.LogError(err.Error())
+		return errors.WithMessage(err, "OnActivate failed")
 	}
+	authTokenSecret, err := app.EnsureAuthTokenSecret(s)
+	if err != nil {
+		p.API.LogError(err.Error())
+		return errors.WithMessage(err, "OnActivate failed")
+	}
+	instanceLoader := loader.New(instanceStore, currentInstanceStore, rsaPrivateKey, authTokenSecret)
 
-	store := NewStore(p)
-	p.currentInstanceStore = store
-	p.instanceStore = store
-	p.userStore = store
-	p.secretsStore = store
-	p.otsStore = store
-
-	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), manifest.Id, "server", "dist", "templates")
+	// HW FUTURE TODO: Better template management, text vs html
+	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id, "server", "dist", "templates")
 	templates, err := p.loadTemplates(dir)
 	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate: failed to load templates")
 	}
-	p.templates = templates
 
-	conf = p.updateConfig(func(conf *config) {
-		conf.botUserID = user.Id
+	p.updateConfig(func(conf *config.Config) {
+		conf.RSAPrivateKey = rsaPrivateKey
+		conf.AuthTokenSecret = authTokenSecret
+
+		conf.API = p.API
+		conf.UserStore = store.NewUserStore(s)
+		conf.InstanceStore = instanceStore
+		conf.CurrentInstanceStore = currentInstanceStore
+		conf.KnownInstancesStore = knownInstanceStore
+		conf.InstanceLoader = instanceLoader
+		conf.OneTimeStore = ots
+
+		conf.Templates = templates
+		conf.PluginId = p.Id
+		conf.PluginVersion = p.Version
+		conf.PluginURLPath = "/plugins/" + p.Id
 	})
 
-	err = p.API.RegisterCommand(getCommand())
+	err = p.OnConfigurationChange()
 	if err != nil {
+		return errors.WithMessage(err, "OnActivate: failed to configure")
+	}
+
+	err = p.API.RegisterCommand(&model.Command{
+		Trigger:          "jira",
+		DisplayName:      "Jira",
+		Description:      "Integration with Jira.",
+		AutoComplete:     true,
+		AutoCompleteDesc: "Available commands: connect, disconnect, create, transition, settings, install cloud/server, uninstall cloud/server, help",
+		AutoCompleteHint: "[command]",
+	})
+	if err != nil {
+		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate: failed to register command")
 	}
 
 	return nil
 }
 
-func (p *Plugin) GetPluginKey() string {
-	return "mattermost_" + regexpNonAlnum.ReplaceAllString(p.GetSiteURL(), "_")
-}
-func (p *Plugin) GetPluginURLPath() string {
-	return "/plugins/" + manifest.Id
+// OnConfigurationChange is invoked when configuration changes may have been made.
+func (p *Plugin) OnConfigurationChange() error {
+	oldSC := p.getConfig().StoredConfig
+
+	// Load the public configuration fields from the Mattermost server configuration.
+	newSC := config.StoredConfig{}
+	err := p.API.LoadPluginConfiguration(&newSC)
+	if err != nil {
+		err = errors.WithMessage(err, "failed to load plugin configuration")
+		p.API.LogError(err.Error())
+		return err
+	}
+
+	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
+
+	newBotUserID := ""
+	if newSC.UserName != oldSC.UserName {
+		user, appErr := p.API.GetUserByUsername(newSC.UserName)
+		if appErr != nil {
+			p.API.LogError(appErr.Error())
+			return errors.WithMessage(appErr, fmt.Sprintf("unable to load user %s", newSC.UserName))
+		}
+		newBotUserID = user.Id
+	}
+
+	p.updateConfig(func(conf *config.Config) {
+		conf.StoredConfig = newSC
+		conf.MattermostSiteURL = mattermostSiteURL
+		conf.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(conf.MattermostSiteURL, "_")
+		conf.PluginURLPath = "/plugins/" + manifest.Id
+		conf.PluginURL = strings.TrimRight(conf.MattermostSiteURL, "/") + conf.PluginURLPath
+
+		if newBotUserID != "" {
+			conf.BotUserId = newBotUserID
+		}
+	})
+
+	return nil
 }
 
-func (p *Plugin) GetPluginURL() string {
-	return strings.TrimRight(p.GetSiteURL(), "/") + p.GetPluginURLPath()
+func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
+	a := action.MakeHTTPAction(app_http.Router, pc, p.getConfig(), r, w)
+
+	app_http.Router.RunRoute(r.URL.Path, a)
 }
 
-func (p *Plugin) GetSiteURL() string {
-	return *p.API.GetConfig().ServiceSettings.SiteURL
+func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
+	key, a, err := action.MakeCommandAction(command.Router, pc, p.getConfig(), commandArgs)
+	if err != nil {
+		if a == nil {
+			p.API.LogError(err.Error())
+			return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
+		}
+		a.RespondError(0, err, "command failed")
+		return a.CommandResponse, nil
+	}
+	command.Router.RunRoute(key, a)
+	return a.CommandResponse, nil
 }
 
-func (p *Plugin) debugf(f string, args ...interface{}) {
-	p.API.LogDebug(fmt.Sprintf(f, args...))
+func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error) {
+	templates := make(map[string]*template.Template)
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		template, err := template.ParseFiles(path)
+		if err != nil {
+			return nil
+		}
+		key := path[len(dir):]
+		templates[key] = template
+		return nil
+	})
+	if err != nil {
+		return nil, errors.WithMessage(err, "OnActivate: failed to load templates")
+	}
+	return templates, nil
 }
 
-func (p *Plugin) infof(f string, args ...interface{}) {
-	p.API.LogInfo(fmt.Sprintf(f, args...))
+func (p *Plugin) getConfig() config.Config {
+	p.confLock.RLock()
+	defer p.confLock.RUnlock()
+	return p.config
 }
 
-func (p *Plugin) errorf(f string, args ...interface{}) {
-	p.API.LogError(fmt.Sprintf(f, args...))
+func (p *Plugin) updateConfig(f func(conf *config.Config)) config.Config {
+	p.confLock.Lock()
+	defer p.confLock.Unlock()
+
+	f(&p.config)
+	return p.config
 }

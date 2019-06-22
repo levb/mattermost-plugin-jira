@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package main
+package jira_cloud
 
 import (
 	"crypto/aes"
@@ -17,24 +17,16 @@ import (
 
 const authTokenTTL = 15 * time.Minute
 
+const ArgMMToken = "mm_token"
+
 type AuthToken struct {
 	MattermostUserID string    `json:"mattermost_user_id,omitempty"`
 	Secret           string    `json:"secret,omitempty"`
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (p *Plugin) NewEncodedAuthToken(mattermostUserID, secret string) (returnToken string, returnErr error) {
-	defer func() {
-		if returnErr == nil {
-			return
-		}
-		returnErr = errors.WithMessage(returnErr, "failed to create auth token")
-	}()
-
-	encryptSecret, err := p.secretsStore.EnsureAuthTokenEncryptSecret()
-	if err != nil {
-		return "", err
-	}
+func (cloudInstance Instance) NewAuthToken(mattermostUserID,
+	secret string) (returnToken string, returnErr error) {
 
 	t := AuthToken{
 		MattermostUserID: mattermostUserID,
@@ -44,38 +36,26 @@ func (p *Plugin) NewEncodedAuthToken(mattermostUserID, secret string) (returnTok
 
 	jsonBytes, err := json.Marshal(t)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	encrypted, err := encrypt(jsonBytes, encryptSecret)
+	encrypted, err := encrypt(jsonBytes, cloudInstance.authTokenSecret)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
 	return encode(encrypted)
 }
 
-func (p *Plugin) ParseAuthToken(encoded string) (mattermostUserID, tokenSecret string, returnErr error) {
-	defer func() {
-		if returnErr == nil {
-			return
-		}
-		returnErr = errors.WithMessage(returnErr, "failed to parse auth token")
-	}()
-
+func (cloudInstance Instance) ParseAuthToken(encoded string) (string, string, error) {
 	t := AuthToken{}
 	err := func() error {
-		encryptSecret, err := p.secretsStore.EnsureAuthTokenEncryptSecret()
-		if err != nil {
-			return err
-		}
-
 		decoded, err := decode(encoded)
 		if err != nil {
 			return err
 		}
 
-		jsonBytes, err := decrypt(decoded, encryptSecret)
+		jsonBytes, err := decrypt(decoded, cloudInstance.authTokenSecret)
 		if err != nil {
 			return err
 		}

@@ -49,6 +49,7 @@ github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d/go.mod h1:+NfK9FKe
 github.com/lyft/protoc-gen-validate v0.0.13/go.mod h1:XbGvPuh87YZc5TdIa2/I4pLk0QoUACkjt2znoq26NVQ=
 github.com/magiconair/properties v1.8.0 h1:LLgXmsheXeRoUOBOjtwPQCWIYqM/LU1ayDtDePerRcY=
 github.com/magiconair/properties v1.8.0/go.mod h1:PppfXfuXeibc/6YijjN8zIbojt8czPbwD3XqdrwzmxQ=
+github.com/mattermost/mattermost-plugin-jira v1.1.1 h1:9zjahC1pjCsPVccxpvPgEPsJ+jjwY3qZ1kGg1A8/ZKc=
 github.com/mattermost/mattermost-server v5.6.5+incompatible h1:3GOnGVeecQ8o7kAQqIERdwblc7ezJ/pSWFkVWZEprLk=
 github.com/mattermost/mattermost-server v5.6.5+incompatible/go.mod h1:5L6MjAec+XXQwMIt791Ganu45GKsSiM+I0tLR9wUj8Y=
 github.com/mattermost/mattermost-server v5.10.1+incompatible h1:bSwuCGIOuKGVCxAMsVeEnBP8J2qxNL4/ik8ibDq+Q9U=

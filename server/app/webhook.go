@@ -1,7 +1,7 @@
 // See License for license information.
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 
-package main
+package app
 
 import (
 	"fmt"
@@ -10,13 +10,43 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/plugin"
+)
+
+const (
+	WebhookEventCreated = uint64(1 << iota)
+	WebhookEventCreatedComment
+	WebhookEventDeleted
+	WebhookEventDeletedComment
+	WebhookEventDeletedUnresolved
+	WebhookEventUpdatedAssignee
+	WebhookEventUpdatedAttachment
+	WebhookEventUpdatedComment
+	WebhookEventUpdatedDescription
+	WebhookEventUpdatedLabels
+	WebhookEventUpdatedPriority
+	WebhookEventUpdatedRank
+	WebhookEventUpdatedReopened
+	WebhookEventUpdatedResolved
+	WebhookEventUpdatedSprint
+	WebhookEventUpdatedStatus
+	WebhookEventUpdatedSummary
+)
+
+const RouteIncomingWebhook = "/webhook"
+
+const (
+	PostTypeComment  = "custom_jira_comment"
+	PostTypeMention  = "custom_jira_mention"
+	PostTypeAssigned = "custom_jira_assigned"
 )
 
 type Webhook interface {
 	EventMask() uint64
-	PostToChannel(p *Plugin, channelId, fromUserId string) (*model.Post, int, error)
-	PostNotifications(p *Plugin, ji Instance) ([]*model.Post, int, error)
+	PostToChannel(api plugin.API, channelId, fromUserId string) (*model.Post, int, error)
+	PostNotifications(plugin.API, store.UserStore, string) ([]*model.Post, int, error)
 }
 
 type webhook struct {
@@ -38,7 +68,7 @@ func (wh *webhook) EventMask() uint64 {
 	return wh.eventMask
 }
 
-func (wh webhook) PostToChannel(p *Plugin, channelId, fromUserId string) (*model.Post, int, error) {
+func (wh webhook) PostToChannel(api plugin.API, channelId, fromUserId string) (*model.Post, int, error) {
 	if wh.headline == "" {
 		return nil, http.StatusBadRequest, errors.Errorf("unsupported webhook")
 	}
@@ -66,7 +96,7 @@ func (wh webhook) PostToChannel(p *Plugin, channelId, fromUserId string) (*model
 		post.Message = wh.headline
 	}
 
-	_, appErr := p.API.CreatePost(post)
+	_, appErr := api.CreatePost(post)
 	if appErr != nil {
 		return nil, appErr.StatusCode, appErr
 	}
@@ -74,19 +104,22 @@ func (wh webhook) PostToChannel(p *Plugin, channelId, fromUserId string) (*model
 	return post, http.StatusOK, nil
 }
 
-func (wh *webhook) PostNotifications(p *Plugin, ji Instance) ([]*model.Post, int, error) {
+func (wh *webhook) PostNotifications(api plugin.API, userStore store.UserStore,
+	botUserId string) ([]*model.Post, int, error) {
+
 	posts := []*model.Post{}
 	if len(wh.notifications) == 0 {
 		return nil, http.StatusOK, nil
 	}
 	for _, notification := range wh.notifications {
-		mattermostUserId, err := p.userStore.LoadMattermostUserId(
-			ji, notification.jiraUsername)
+		mattermostUserId, err := userStore.LoadMattermostUserId(notification.jiraUsername)
 		if err != nil {
 			return nil, http.StatusOK, nil
 		}
 
-		post, err := ji.GetPlugin().CreateBotDMPost(ji, mattermostUserId, notification.message, notification.postType)
+		post, err := CreateBotDMPost(
+			api, userStore, mattermostUserId, botUserId,
+			notification.message, notification.postType)
 		if err != nil {
 			return nil, http.StatusInternalServerError, errors.WithMessage(err, "failed to create notification post")
 		}
@@ -103,23 +136,21 @@ func newWebhook(jwh *JiraWebhook, eventMask uint64, format string, args ...inter
 	}
 }
 
-func (p *Plugin) GetWebhookURL(teamId, channelId string) (string, error) {
-	cf := p.getConfig()
-
-	team, appErr := p.API.GetTeam(teamId)
+func GetWebhookURL(api plugin.API, pluginURL, webhookSecret string, teamId, channelId string) (string, error) {
+	team, appErr := api.GetTeam(teamId)
 	if appErr != nil {
 		return "", appErr
 	}
 
-	channel, appErr := p.API.GetChannel(channelId)
+	channel, appErr := api.GetChannel(channelId)
 	if appErr != nil {
 		return "", appErr
 	}
 
 	v := url.Values{}
-	secret, _ := url.QueryUnescape(cf.Secret)
+	secret, _ := url.QueryUnescape(webhookSecret)
 	v.Add("secret", secret)
 	v.Add("team", team.Name)
 	v.Add("channel", channel.Name)
-	return p.GetPluginURL() + "/" + routeIncomingWebhook + "?" + v.Encode(), nil
+	return pluginURL + "/" + RouteIncomingWebhook + "?" + v.Encode(), nil
 }
