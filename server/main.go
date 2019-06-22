@@ -4,9 +4,12 @@
 package main
 
 import (
-	"github.com/mattermost/mattermost-server/plugin"
+	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
 
 func main() {
-	plugin.ClientMain(&Plugin{})
+	mmplugin.ClientMain(&Plugin{
+		Id:      manifest.Id,
+		Version: manifest.Version,
+	})
 }
