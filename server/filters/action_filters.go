@@ -3,7 +3,7 @@ package filters
 import (
 	"net/http"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance/jira_cloud"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiracloud"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/instance"
 

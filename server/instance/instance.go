@@ -9,9 +9,8 @@ import (
 	"github.com/andygrunwald/go-jira"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/user"
 )
-
-const wSEventInstanceStatus = "instance_status"
 
 var ErrWrongInstanceType = errors.New("wrong instance type")
 
@@ -22,7 +21,7 @@ type Instance interface {
 	GetMattermostKey() string
 	GetURL() string
 	GetUserConnectURL(ots store.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
-	GetClient(string, *store.User) (*jira.Client, error)
+	GetClient(string, user.User) (*jira.Client, error)
 }
 
 type BasicInstance struct {

@@ -8,7 +8,7 @@ import (
 	"text/template"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/instance/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/loader"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
