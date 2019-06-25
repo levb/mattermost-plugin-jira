@@ -40,12 +40,12 @@ func completeJiraServerOAuth1(a action.Action) error {
 		return a.RespondError(http.StatusUnauthorized, nil, "request token mismatch")
 	}
 
-	serverInstance, ok := ac.Instance.(*jira_server.Instance)
+	serverUpstream, ok := ac.Upstream.(*jira_server.Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfiguration, wrong Action type")
 	}
 
-	oauth1Config, err := serverInstance.GetOAuth1Config(ac.PluginURL)
+	oauth1Config, err := serverUpstream.GetOAuth1Config(ac.PluginURL)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to obtain oauth1 config")
@@ -63,7 +63,7 @@ func completeJiraServerOAuth1(a action.Action) error {
 		Oauth1AccessToken:  accessToken,
 		Oauth1AccessSecret: accessSecret,
 	}
-	jiraClient, err := serverInstance.GetClient(ac.PluginURL, user)
+	jiraClient, err := serverUpstream.GetClient(ac.PluginURL, user)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -75,7 +75,7 @@ func completeJiraServerOAuth1(a action.Action) error {
 	// Set default settings the first time a user connects
 	user.Settings = &store.UserSettings{Notifications: true}
 
-	err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Instance, ac.MattermostUserId, user)
+	err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Upstream, ac.MattermostUserId, user)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -95,14 +95,14 @@ func completeJiraServerOAuth1(a action.Action) error {
 func getJiraServerOAuth1PublicKey(a action.Action) error {
 	err := action.Script{
 		filters.RequireHTTPGet,
-		filters.RequireInstance,
+		filters.RequireUpstream,
 		filters.RequireMattermostUserId,
 	}.Run(a)
 	if err != nil {
 		return err
 	}
 	ac := a.Context()
-	serverInstance, ok := ac.Instance.(*jira_server.Instance)
+	serverUpstream, ok := ac.Upstream.(*jira_server.Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
 	}
@@ -111,7 +111,7 @@ func getJiraServerOAuth1PublicKey(a action.Action) error {
 		return a.RespondError(http.StatusForbidden, nil, "forbidden")
 	}
 
-	pkey, err := serverInstance.PublicKeyString()
+	pkey, err := serverUpstream.PublicKeyString()
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err, "failed to load public key")
 	}

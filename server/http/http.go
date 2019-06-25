@@ -56,7 +56,7 @@ var Router = &action.Router{
 		routeAPIGetCreateIssueMetadata: action.NewRoute(
 			filters.RequireHTTPGet,
 			filters.RequireMattermostUserId,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireBackendUser,
 			filters.RequireJiraClient,
 			getCreateIssueMetadata,
@@ -64,7 +64,7 @@ var Router = &action.Router{
 		routeAPICreateIssue: action.NewRoute(
 			filters.RequireHTTPPost,
 			filters.RequireMattermostUserId,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireBackendUser,
 			filters.RequireJiraClient,
 			createIssue,
@@ -72,7 +72,7 @@ var Router = &action.Router{
 		routeAPIAttachCommentToIssue: action.NewRoute(
 			filters.RequireHTTPPost,
 			filters.RequireMattermostUserId,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireBackendUser,
 			filters.RequireJiraClient,
 			attachCommentToIssue,
@@ -80,7 +80,7 @@ var Router = &action.Router{
 		routeAPIGetSearchIssues: action.NewRoute(
 			filters.RequireHTTPGet,
 			filters.RequireMattermostUserId,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireBackendUser,
 			filters.RequireJiraClient,
 			getSearchIssues,
@@ -101,17 +101,17 @@ var Router = &action.Router{
 		// Incoming webhooks
 		routeWebhookJiraSubscribe: action.NewRoute(
 			filters.RequireHTTPPost,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			processSubscribeWebhook,
 		),
 		routeWebhookJira: action.NewRoute(
 			filters.RequireHTTPPost,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			processLegacyWebhook,
 		),
 		routeWebhookJiraIssueEvent: action.NewRoute(
 			filters.RequireHTTPPost,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			processLegacyWebhook,
 		),
 
@@ -127,12 +127,12 @@ var Router = &action.Router{
 
 		// User connect and disconnect URLs
 		routeUserConnect: action.NewRoute(
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireMattermostUserId,
 			connectUser,
 		),
 		routeUserDisconnect: action.NewRoute(
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireMattermostUserId,
 			filters.RequireMattermostUser,
 			disconnectUser,
@@ -142,7 +142,7 @@ var Router = &action.Router{
 		routeJiraCloudUser: action.NewRoute(
 			// TODO this is wrong, all 3 are gets, 2 should be posts
 			filters.RequireHTTPGet,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			filters.RequireJiraCloudJWT,
 			filters.RequireMattermostUserId,
 			filters.RequireMattermostUser,
@@ -153,7 +153,7 @@ var Router = &action.Router{
 			filters.RequireHTTPGet,
 			filters.RequireMattermostUserId,
 			filters.RequireMattermostUser,
-			filters.RequireInstance,
+			filters.RequireUpstream,
 			completeJiraServerOAuth1),
 	},
 }

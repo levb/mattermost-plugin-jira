@@ -14,7 +14,7 @@ func connectUser(a action.Action) error {
 	ac := a.Context()
 
 	redirectURL, status, err := app.GetUserConnectURL(
-		ac.UserStore, ac.OneTimeStore, ac.Instance, ac.PluginURL, ac.MattermostUserId)
+		ac.UserStore, ac.OneTimeStore, ac.Upstream, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err)
 	}
@@ -46,7 +46,7 @@ func disconnectUser(a action.Action) error {
 
 func getUserInfo(a action.Action) error {
 	ac := a.Context()
-	return a.RespondJSON(app.GetUserInfo(ac.InstanceLoader,
+	return a.RespondJSON(app.GetUserInfo(ac.UpstreamLoader,
 		ac.UserStore,
 		ac.MattermostUserId,
 	))

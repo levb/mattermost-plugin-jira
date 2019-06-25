@@ -15,12 +15,12 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
-	"github.com/mattermost/mattermost-plugin-jira/server/user"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
-const WebsocketEventInstanceStatus = "instance_status"
+const WebsocketEventUpstreamStatus = "instance_status"
 
 const StoreKeyTokenSecret = "token_secret"
 const StoreKeyRSAPrivateKey = "rsa_key"
@@ -82,17 +82,17 @@ func CreateBotDMPost(api plugin.API, botUserId, mattermostUserId string, user us
 	return post, nil
 }
 
-func StoreCurrentInstanceAndNotify(api plugin.API,
-	currentInstanceStore instance.CurrentInstanceStore,
-	instance instance.Instance) error {
+func StoreCurrentUpstreamAndNotify(api plugin.API,
+	currentUpstreamStore instance.CurrentUpstreamStore,
+	instance instance.Upstream) error {
 
-	appErr := currentInstanceStore.Store(instance)
+	appErr := currentUpstreamStore.Store(instance)
 	if appErr != nil {
 		return appErr
 	}
 	// Notify users we have installed an instance
 	api.PublishWebSocketEvent(
-		WebsocketEventInstanceStatus,
+		WebsocketEventUpstreamStatus,
 		map[string]interface{}{
 			"instance_installed": true,
 		},

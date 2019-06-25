@@ -6,8 +6,7 @@ package jiraserver
 import (
 	"net/http"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 
 	"github.com/pkg/errors"
@@ -37,14 +36,14 @@ type JiraUser struct {
 	type GetUserInfoResponse struct {
 	store.User
 	IsConnected       bool   `json:"is_connected"`
-	InstanceInstalled bool   `json:"instance_installed"`
+	UpstreamInstalled bool   `json:"instance_installed"`
 	JIRAURL           string `json:"jira_url,omitempty"`
 }
 
 func GetUserConnectURL(
 	userStore store.UserStore,
 	oneTimeStore store.OneTimeStore,
-	instance instance.Instance,
+	instance instance.Upstream,
 	pluginURL string,
 	mattermostUserId string,
 ) (string, int, error) {
@@ -65,7 +64,7 @@ func GetUserConnectURL(
 }
 
 func GetUserInfo(
-	instanceLoader loader.InstanceLoader,
+	instanceLoader loader.UpstreamLoader,
 	userStore store.UserStore,
 	mattermostUserId string,
 ) GetUserInfoResponse {
@@ -73,7 +72,7 @@ func GetUserInfo(
 	resp := GetUserInfoResponse{}
 	instance, err := instanceLoader.Current()
 	if err == nil {
-		resp.InstanceInstalled = true
+		resp.UpstreamInstalled = true
 		resp.JIRAURL = instance.GetURL()
 		user, err := userStore.Load(mattermostUserId)
 		if err == nil {
@@ -84,7 +83,7 @@ func GetUserInfo(
 	return resp
 }
 
-func StoreUserNotify(api plugin.API, userStore store.UserStore, instance instance.Instance,
+func StoreUserNotify(api plugin.API, userStore store.UserStore, instance instance.Upstream,
 	mattermostUserId string, user *store.User) error {
 
 	err := userStore.Store(mattermostUserId, user)

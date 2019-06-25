@@ -18,14 +18,14 @@ import (
 	ajwt "github.com/rbriski/atlassian-jwt"
 	oauth2_jira "golang.org/x/oauth2/jira"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
 const Type = "cloud"
 
-type Instance struct {
-	instance.BasicInstance
+type Upstream struct {
+	upstream.Upstream
 
 	// Initially a new instance is created with an expiration time. The
 	// admin is expected to upload it to the Jira instance, and we will
@@ -42,8 +42,6 @@ type Instance struct {
 	authTokenSecret          []byte
 }
 
-var _ instance.Instance = (*Instance)(nil)
-
 const UserLandingPageKey = "user-redirect"
 
 type AtlassianSecurityContext struct {
@@ -59,53 +57,48 @@ type AtlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func New(key string, installed bool, rawASC string,
-	asc *AtlassianSecurityContext, authTokenSecret []byte) *Instance {
+func NewUpstream(up upstream.Upstream, installed bool, rawASC string,
+	asc *AtlassianSecurityContext, authTokenSecret []byte) Upstream {
 
-	return &Instance{
-		BasicInstance: instance.BasicInstance{
-			InstanceType: Type,
-			InstanceKey:  key,
-			InstanceURL:  asc.BaseURL,
-		},
+	upstream := &Upstream{
+		Upstream: up,
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
 		authTokenSecret:             authTokenSecret,
 	}
+	
+	upstream.Config().URL = asc.BaseURL
+	return upstream
 }
 
-func FromJSON(data, authTokenSecret []byte) (*Instance, error) {
-	inst := Instance{}
-	err := json.Unmarshal(data, &inst)
+func FromJSON(data, authTokenSecret []byte) (*Upstream, error) {
+	up := Upstream{}
+	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	inst.BasicInstance.InstanceURL = inst.atlassianSecurityContext.BaseURL
-	inst.authTokenSecret = authTokenSecret
-	return &inst, nil
+	up.Config().URL = up.atlassianSecurityContext.BaseURL
+	up.Config().AuthTokenSecret = authTokenSecret
+	return &up, nil
 }
 
-func (jci Instance) GetMattermostKey() string {
-	return jci.atlassianSecurityContext.Key
-}
-
-func (jci Instance) GetDisplayDetails() map[string]string {
-	if !jci.Installed {
+func (up upstream) GetDisplayDetails() map[string]string {
+	if !up.Installed {
 		return map[string]string{
 			"Setup": "In progress",
 		}
 	}
 
 	return map[string]string{
-		"Key":            jci.atlassianSecurityContext.Key,
-		"ClientKey":      jci.atlassianSecurityContext.ClientKey,
-		"ServerVersion":  jci.atlassianSecurityContext.ServerVersion,
-		"PluginsVersion": jci.atlassianSecurityContext.PluginsVersion,
+		"Key":            up.atlassianSecurityContext.Key,
+		"ClientKey":      up.atlassianSecurityContext.ClientKey,
+		"ServerVersion":  up.atlassianSecurityContext.ServerVersion,
+		"PluginsVersion": up.atlassianSecurityContext.PluginsVersion,
 	}
 }
 
-func (cloudInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up Upstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -118,7 +111,7 @@ func (cloudInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 	if err != nil {
 		return "", err
 	}
-	token, err := cloudInstance.NewAuthToken(mattermostUserId, secret)
+	token, err := cloudUpstream.NewAuthToken(mattermostUserId, secret)
 	if err != nil {
 		return "", err
 	}
@@ -126,17 +119,17 @@ func (cloudInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 	v := url.Values{}
 	v.Add(ArgMMToken, token)
 	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
-		cloudInstance.InstanceURL,
-		cloudInstance.InstanceURL,
-		cloudInstance.atlassianSecurityContext.Key,
+		cloudUpstream.UpstreamURL,
+		cloudUpstream.UpstreamURL,
+		cloudUpstream.atlassianSecurityContext.Key,
 		UserLandingPageKey,
 		v.Encode(),
 	), nil
 }
 
-func (jci Instance) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
+func (jci Upstream) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
 	oauth2Conf := oauth2_jira.Config{
-		BaseURL: jci.InstanceURL,
+		BaseURL: jci.UpstreamURL,
 		// TODO replace with ID
 		Subject: user.Name,
 	}
@@ -153,7 +146,7 @@ func (jci Instance) GetClient(pluginURL string, user *store.User) (*jira.Client,
 }
 
 // Creates a "bot" client with a JWT
-func (jci Instance) getClientForServer() (*jira.Client, error) {
+func (jci Upstream) getClientForServer() (*jira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          jci.atlassianSecurityContext.Key,
 		ClientKey:    jci.atlassianSecurityContext.ClientKey,
@@ -164,7 +157,7 @@ func (jci Instance) getClientForServer() (*jira.Client, error) {
 	return jira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (jci Instance) JWTFromHTTPRequest(r *http.Request) (
+func (jci Upstream) JWTFromHTTPRequest(r *http.Request) (
 	token *jwt.Token, rawToken string, status int, err error) {
 
 	tokenString := r.FormValue("jwt")

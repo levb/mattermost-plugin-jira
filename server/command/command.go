@@ -46,15 +46,15 @@ var Router = &action.Router{
 
 	// MattermostUserID is set for all commands, so no special "Requir" for it
 	Routes: map[string]*action.Route{
-		"connect":    action.NewRoute(filters.RequireInstance, connect),
+		"connect":    action.NewRoute(filters.RequireUpstream, connect),
 		"disconnect": action.NewRoute(filters.RequireBackendUser, disconnect),
 		"settings/notifications/": action.NewRoute(filters.RequireJiraClient, notifications).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1,
 				ArgNames: []string{"value"}}),
 		"instance/list": action.NewRoute(filters.RequireMattermostSysAdmin, list),
-		"instance/select": action.NewRoute(filters.RequireMattermostSysAdmin, selectInstance).With(
+		"instance/select": action.NewRoute(filters.RequireMattermostSysAdmin, selectUpstream).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
-		"instance/delete": action.NewRoute(filters.RequireMattermostSysAdmin, deleteInstance).With(
+		"instance/delete": action.NewRoute(filters.RequireMattermostSysAdmin, deleteUpstream).With(
 			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
 	},
 	// 	RequireMattermostSysAdmin,
@@ -88,7 +88,7 @@ func help(a action.Action) error {
 
 func connect(a action.Action) error {
 	ac := a.Context()
-	redirectURL, err := ac.Instance.GetUserConnectURL(ac.OneTimeStore, ac.PluginURL, ac.MattermostUserId)
+	redirectURL, err := ac.Upstream.GetUserConnectURL(ac.OneTimeStore, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(0, err, "command failed, please contact your system administrator")
 	}
@@ -132,7 +132,7 @@ func notifications(a action.Action) error {
 
 func list(a action.Action) error {
 	ac := a.Context()
-	known, err := ac.KnownInstancesStore.Load()
+	known, err := ac.KnownUpstreamsStore.Load()
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -141,7 +141,7 @@ func list(a action.Action) error {
 	}
 
 	// error not important here, only need to highlight thee current in the list
-	currentInstance, _ := ac.InstanceLoader.Current()
+	currentUpstream, _ := ac.UpstreamLoader.Current()
 
 	keys := []string{}
 	for key := range known {
@@ -150,7 +150,7 @@ func list(a action.Action) error {
 	sort.Strings(keys)
 	text := "Known Jira instances (selected instance is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
 	for i, key := range keys {
-		instance, err := ac.InstanceLoader.Load(key)
+		instance, err := ac.UpstreamLoader.Load(key)
 		if err != nil {
 			text += fmt.Sprintf("|%v|%s|error: %v|\n", i+1, key, err)
 			continue
@@ -165,7 +165,7 @@ func list(a action.Action) error {
 			details = instance.GetType()
 		}
 		format := "|%v|%s|%s|\n"
-		if currentInstance != nil && key == currentInstance.GetURL() {
+		if currentUpstream != nil && key == currentUpstream.GetURL() {
 			format = "| **%v** | **%s** |%s|\n"
 		}
 		text += fmt.Sprintf(format, i+1, key, details)
@@ -186,7 +186,7 @@ func list(a action.Action) error {
 
 // 	// Create an "uninitialized" instance of Jira Cloud that will
 // 	// receive the /installed callback
-// 	err := a.InstanceStore.CreateInactiveCloudInstance(jiraURL)
+// 	err := a.UpstreamStore.CreateInactiveCloudUpstream(jiraURL)
 // 	if err != nil {
 // 		return a.RespondError(0, err)
 // 	}
@@ -242,12 +242,12 @@ func list(a action.Action) error {
 
 // If you see an option to create a Jira issue, you're all set! If not, refer to our [documentation](https://about.mattermost.com/default-jira-plugin) for troubleshooting help.
 // `
-// 	serverInstance := NewServerInstance(jiraURL, a.PluginConfig.PluginKey)
-// 	err := a.InstanceStore.StoreInstance(serverInstance)
+// 	serverUpstream := NewServerUpstream(jiraURL, a.PluginConfig.PluginKey)
+// 	err := a.UpstreamStore.StoreUpstream(serverUpstream)
 // 	if err != nil {
 // 		return a.RespondError(0, err)
 // 	}
-// 	err = a.CurrentInstanceStore.StoreCurrentInstance(serverInstance)
+// 	err = a.CurrentUpstreamStore.StoreCurrentUpstream(serverUpstream)
 // 	if err != nil {
 // 		return a.RespondError(0, err)
 // 	}
@@ -256,11 +256,11 @@ func list(a action.Action) error {
 // 	if err != nil {
 // 		return a.RespondError(0, err)
 // 	}
-// 	return a.RespondPrintf(addResponseFormat, a.PluginConfig.SiteURL, serverInstance.GetMattermostKey(), pkey)
+// 	return a.RespondPrintf(addResponseFormat, a.PluginConfig.SiteURL, serverUpstream.GetMattermostKey(), pkey)
 // }
 
 // var commandUninstall = ActionScript{
-// 	RequireInstance,
+// 	RequireUpstream,
 // 	RequireMattermostSysAdmin,
 // 	executeUninstall,
 // }
@@ -273,22 +273,22 @@ func list(a action.Action) error {
 // 	}
 // 	jiraURL := a.FormValue("$1")
 
-// 	if jiraURL != a.Instance.GetURL() {
+// 	if jiraURL != a.Upstream.GetURL() {
 // 		return a.RespondError(0, nil,
 // 			"You have entered an incorrect URL. The current Jira instance URL is: %s. "+
 // 				"Please enter the URL correctly to confirm the uninstall command.",
-// 			a.Instance.GetURL())
+// 			a.Upstream.GetURL())
 // 	}
 
-// 	err := a.InstanceStore.DeleteJiraInstance(a.Instance.GetURL())
+// 	err := a.UpstreamStore.DeleteJiraUpstream(a.Upstream.GetURL())
 // 	if err != nil {
 // 		return a.RespondError(0, err,
-// 			"Failed to delete Jira instance %s", a.Instance.GetURL())
+// 			"Failed to delete Jira instance %s", a.Upstream.GetURL())
 // 	}
 
 // 	// Notify users we have uninstalled an instance
 // 	a.API.PublishWebSocketEvent(
-// 		wSEventInstanceStatus,
+// 		wSEventUpstreamStatus,
 // 		map[string]interface{}{
 // 			"instance_installed": false,
 // 		},
@@ -346,12 +346,12 @@ func list(a action.Action) error {
 // 	}
 // }
 
-func selectInstance(a action.Action) error {
+func selectUpstream(a action.Action) error {
 	ac := a.Context()
 	instanceKey := a.FormValue("n")
 	num, err := strconv.ParseUint(instanceKey, 10, 8)
 	if err == nil {
-		known, loadErr := ac.KnownInstancesStore.Load()
+		known, loadErr := ac.KnownUpstreamsStore.Load()
 		if loadErr != nil {
 			return a.RespondError(0, err)
 		}
@@ -368,11 +368,11 @@ func selectInstance(a action.Action) error {
 		instanceKey = keys[num-1]
 	}
 
-	instance, err := ac.InstanceLoader.Load(instanceKey)
+	instance, err := ac.UpstreamLoader.Load(instanceKey)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
-	err = ac.CurrentInstanceStore.Store(instance)
+	err = ac.CurrentUpstreamStore.Store(instance)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -380,11 +380,11 @@ func selectInstance(a action.Action) error {
 	return list(a)
 }
 
-func deleteInstance(a action.Action) error {
+func deleteUpstream(a action.Action) error {
 	ac := a.Context()
 	instanceKey := a.FormValue("n")
 
-	known, err := ac.KnownInstancesStore.Load()
+	known, err := ac.KnownUpstreamsStore.Load()
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -409,7 +409,7 @@ func deleteInstance(a action.Action) error {
 	}
 
 	// Remove the instance
-	err = ac.InstanceStore.Delete(instanceKey)
+	err = ac.UpstreamStore.Delete(instanceKey)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -420,6 +420,6 @@ func deleteInstance(a action.Action) error {
 	}
 
 	// Select instance #1
-	// TODO 	return executeInstanceSelect(a)
+	// TODO 	return executeUpstreamSelect(a)
 	return a.RespondPrintf("<><> DONE")
 }

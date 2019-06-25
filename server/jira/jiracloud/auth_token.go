@@ -25,7 +25,7 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (cloudInstance Instance) NewAuthToken(mattermostUserID,
+func (cloudUpstream Upstream) NewAuthToken(mattermostUserID,
 	secret string) (returnToken string, returnErr error) {
 
 	t := AuthToken{
@@ -39,7 +39,7 @@ func (cloudInstance Instance) NewAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	encrypted, err := encrypt(jsonBytes, cloudInstance.authTokenSecret)
+	encrypted, err := encrypt(jsonBytes, cloudUpstream.authTokenSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
@@ -47,7 +47,7 @@ func (cloudInstance Instance) NewAuthToken(mattermostUserID,
 	return encode(encrypted)
 }
 
-func (cloudInstance Instance) ParseAuthToken(encoded string) (string, string, error) {
+func (cloudUpstream Upstream) ParseAuthToken(encoded string) (string, string, error) {
 	t := AuthToken{}
 	err := func() error {
 		decoded, err := decode(encoded)
@@ -55,7 +55,7 @@ func (cloudInstance Instance) ParseAuthToken(encoded string) (string, string, er
 			return err
 		}
 
-		jsonBytes, err := decrypt(decoded, cloudInstance.authTokenSecret)
+		jsonBytes, err := decrypt(decoded, cloudUpstream.authTokenSecret)
 		if err != nil {
 			return err
 		}

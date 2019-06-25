@@ -16,8 +16,7 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/user"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
 type CreateIssueRequest struct {
@@ -30,7 +29,7 @@ func CreateIssue(
 	api mmplugin.API,
 	siteURL string,
 	jiraClient *jira.Client,
-	instance instance.Instance,
+	up upstream.Upstream,
 	mattermostUserId string,
 	req *CreateIssueRequest,
 ) (*jira.Issue, int, error) {
@@ -114,7 +113,7 @@ func CreateIssue(
 
 	// Reply to the post with the issue link that was created
 	replyPost := &model.Post{
-		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", instance.GetURL(), createdIssue.Key),
+		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", up.GetURL(), createdIssue.Key),
 		ChannelId: channelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -167,8 +166,8 @@ type AttachCommentToIssueRequest struct {
 }
 
 func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Client,
-	instance instance.Instance, mattermostUserId string, req AttachCommentToIssueRequest,
-	user user.User) (*jira.Comment, int, error) {
+	up upstream.Upstream, mattermostUserId string, req AttachCommentToIssueRequest,
+	user upstream.User) (*jira.Comment, int, error) {
 
 	// Add a permalink to the post to the issue description
 	post, appErr := api.GetPost(req.PostId)
@@ -213,7 +212,7 @@ func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Cli
 	// Reply to the post with the issue link that was created
 	reply := &model.Post{
 		Message: fmt.Sprintf("Message attached to [%v](%v/browse/%v)",
-			req.IssueKey, instance.GetURL(), req.IssueKey),
+			req.IssueKey, up.GetURL(), req.IssueKey),
 		ChannelId: post.ChannelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -259,7 +258,7 @@ func GetPermalink(api mmplugin.API, siteURL, postId string, post *model.Post) (s
 	return permalink, nil
 }
 
-func TransitionIssue(jiraClient *jira.Client, instance instance.Instance, issueKey, toState string) (string, error) {
+func TransitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, toState string) (string, error) {
 	transitions, _, err := jiraClient.Issue.GetTransitions(issueKey)
 	if err != nil {
 		return "", errors.New("We couldn't find the issue key. Please confirm the issue key and try again. You may not have permissions to access this issue.")
@@ -296,6 +295,6 @@ func TransitionIssue(jiraClient *jira.Client, instance instance.Instance, issueK
 		return "", err
 	}
 
-	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, instance.GetURL(), issueKey, transitionToUse.To.Name)
+	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, up.GetURL(), issueKey, transitionToUse.To.Name)
 	return msg, nil
 }

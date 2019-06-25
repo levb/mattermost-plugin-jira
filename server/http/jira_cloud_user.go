@@ -32,13 +32,13 @@ func connectJiraCloudUser(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	cloudInstance, ok := ac.Instance.(*jira_cloud.Instance)
+	cloudUpstream, ok := ac.Upstream.(*jira_cloud.Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
 	}
 
 	mmtoken := a.FormValue(argMMToken)
-	user, secret, status, err := parseTokens(cloudInstance, ac.BackendJWT, mmtoken, ac.MattermostUserId)
+	user, secret, status, err := parseTokens(cloudUpstream, ac.BackendJWT, mmtoken, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err, "failed to parse tokens")
 	}
@@ -53,7 +53,7 @@ func connectJiraCloudUser(a action.Action) error {
 		if len(storedSecret) == 0 || string(storedSecret) != secret {
 			return a.RespondError(http.StatusUnauthorized, nil, "this link has already been used")
 		}
-		err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Instance, ac.MattermostUserId, user)
+		err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Upstream, ac.MattermostUserId, user)
 		a.Debugf("Stored and notified: %s %+v", ac.MattermostUserId, ac.User)
 
 	case routeJiraCloudUserDisconnected:
@@ -90,7 +90,7 @@ func connectJiraCloudUser(a action.Action) error {
 	})
 }
 
-func parseTokens(cloudInstance *jira_cloud.Instance,
+func parseTokens(cloudUpstream *jira_cloud.Upstream,
 	backendJWT *jwt.Token, mmtoken, mattermostUserId string) (
 	user *store.User, secret string, status int, err error) {
 
@@ -117,7 +117,7 @@ func parseTokens(cloudInstance *jira_cloud.Instance,
 		},
 	}
 
-	requestedUserId, secret, err := cloudInstance.ParseAuthToken(mmtoken)
+	requestedUserId, secret, err := cloudUpstream.ParseAuthToken(mmtoken)
 	if err != nil {
 		return nil, "", http.StatusUnauthorized, err
 	}

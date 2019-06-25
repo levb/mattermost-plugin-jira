@@ -25,8 +25,9 @@ func (r *Route) With(metadata interface{}) *Route {
 
 type Router struct {
 	Routes         map[string]*Route
-	DefaultHandler Func
-	LogHandler     Func
+	Before Script
+	After Script
+	Default Func
 }
 
 func (router Router) RunRoute(key string, a Action) {
@@ -62,18 +63,27 @@ func (router Router) RunRoute(key string, a Action) {
 
 	// Use the default, if needed
 	if handler == nil {
-		handler = Script{router.DefaultHandler}
+		handler = Script{router.Default}
 	}
 
-	// Run the handler
+	if len(router.Before) > 0 {
+		err := router.Before.Run(a)
+		if err != nil {
+			a.Context().LogErr = err
+			return
+		}
+	}
+
 	err := handler.Run(a)
 	if err != nil {
 		a.Context().LogErr = err
 	}
 
-	// Log
-	if router.LogHandler != nil {
-		_ = router.LogHandler(a)
+	if len(router.After) > 0 {
+		errAfter := router.After.Run(a)
+		if errAfter != nil {
+			return
+		}
 	}
 }
 

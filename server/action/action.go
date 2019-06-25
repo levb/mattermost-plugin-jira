@@ -5,13 +5,29 @@ package action
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 
+	"github.com/andygrunwald/go-jira"
+	"github.com/dgrijalva/jwt-go"
+
+	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/config"
-	mmplugin "github.com/mattermost/mattermost-server/plugin"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
-type Runner interface {
-	Run(a Action) error
+type Context struct {
+	config.Config `json:"none"`
+
+	PluginContext *plugin.Context
+	Upstream         upstream.Upstream
+	User             upstream.User
+	JiraClient       *jira.Client
+	LogErr           error
+	MattermostUser   *model.User
+	MattermostUserId string
+	UpstreamJWT       *jwt.Token
+	UpstreamRawJWT    string
 }
 
 type Action interface {
@@ -29,6 +45,12 @@ type Responder interface {
 	RespondPrintf(format string, args ...interface{}) error
 }
 
+type Logger interface {
+	Debugf(f string, args ...interface{})
+	Infof(f string, args ...interface{})
+	Errorf(f string, args ...interface{})
+}
+
 type Func func(a Action) error
 
 type actionHandler struct {
@@ -36,13 +58,15 @@ type actionHandler struct {
 	metadata interface{}
 }
 
-type BasicAction struct {
-	context *Context
+type action struct {
+	context Context
 }
 
-func NewBasicAction(router *Router, conf config.Config, pc *mmplugin.Context, mattermostUserId string) *BasicAction {
-	return &BasicAction{
-		context: &Context{
+var _ Action = (*action)(nil)
+
+func NewAction(router *Router, conf config.Config, pc *plugin.Context, mattermostUserId string) Action {
+	return &action{
+		context: Context{
 			Config:           conf,
 			PluginContext:    pc,
 			MattermostUserId: mattermostUserId,
@@ -50,26 +74,42 @@ func NewBasicAction(router *Router, conf config.Config, pc *mmplugin.Context, ma
 	}
 }
 
-type Logger interface {
-	Debugf(f string, args ...interface{})
-	Infof(f string, args ...interface{})
-	Errorf(f string, args ...interface{})
+func (a action) Context() *Context {
+	return &a.context
 }
 
-var _ Logger = (*BasicAction)(nil)
-
-func (a BasicAction) Debugf(f string, args ...interface{}) {
+func (a action) Debugf(f string, args ...interface{}) {
 	a.context.API.LogDebug(fmt.Sprintf(f, args...))
 }
 
-func (a BasicAction) Infof(f string, args ...interface{}) {
+func (a action) Infof(f string, args ...interface{}) {
 	a.context.API.LogInfo(fmt.Sprintf(f, args...))
 }
 
-func (a BasicAction) Errorf(f string, args ...interface{}) {
+func (a action) Errorf(f string, args ...interface{}) {
 	a.context.API.LogError(fmt.Sprintf(f, args...))
 }
 
-func (a BasicAction) Context() *Context {
-	return a.context
+func (a action) RespondTemplate(templateKey, contentType string, values interface{}) error {
+	return nil
+}
+
+func (a action) RespondJSON(value interface{}) error {
+	return nil
+}
+
+func (a action) RespondRedirect(redirectURL string) error{
+	return nil
+}
+
+func (a action) RespondError(httpStatusCode int, err error, wrap ...interface{})error {
+	return nil
+}
+
+func (a action) RespondPrintf(format string, args ...interface{}) error {
+	return errors.New("not implemented")	
+}
+
+func (a action) FormValue(string) string {
+	return ""
 }

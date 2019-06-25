@@ -7,10 +7,8 @@ import (
 	"net/http"
 
 	"github.com/andygrunwald/go-jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
-	"github.com/mattermost/mattermost-plugin-jira/server/user"
 
 	"github.com/pkg/errors"
 
@@ -25,25 +23,25 @@ const (
 
 type User struct {
 	jira.User
+	upstream.UserSettings `json:"settings"`
 	MattermostUserId string
-	UserSettings user.Settings `json:"settings"`
 }
 
 type GetUserInfoResponse struct {
 	User
 	IsConnected       bool   `json:"is_connected"`
-	InstanceInstalled bool   `json:"instance_installed"`
+	UpstreamInstalled bool   `json:"instance_installed"`
 	JIRAURL           string `json:"jira_url,omitempty"`
 }
 
-func (user *User) Settings() *user.Settings {
+func (user *User) Settings() *upstream.UserSettings {
 	return &user.UserSettings
 }
 
 func GetUserConnectURL(
-	userStore user.UserStore,
+	userStore upstream.UserStore,
 	oneTimeStore store.OneTimeStore,
-	instance instance.Instance,
+	up upstream.Upstream,
 	pluginURL string,
 	mattermostUserId string,
 ) (string, int, error) {
@@ -56,7 +54,7 @@ func GetUserConnectURL(
 			errors.New("Already connected to a Jira account. Please use /jira disconnect to disconnect.")
 	}
 
-	redirectURL, err := instance.GetUserConnectURL(oneTimeStore, pluginURL, mattermostUserId)
+	redirectURL, err := upstream.GetUserConnectURL(oneTimeStore, pluginURL, mattermostUserId)
 	if err != nil {
 		return "", http.StatusInternalServerError, err
 	}
@@ -65,16 +63,16 @@ func GetUserConnectURL(
 }
 
 func GetUserInfo(
-	instanceLoader loader.InstanceLoader,
+	upstreamLoader loader.UpstreamLoader,
 	userStore user.UserStore,
 	mattermostUserId string,
 ) GetUserInfoResponse {
 
 	resp := GetUserInfoResponse{}
-	instance, err := instanceLoader.Current()
+	up, err := upstreamLoader.Current()
 	if err == nil {
-		resp.InstanceInstalled = true
-		resp.JIRAURL = instance.GetURL()
+		resp.UpstreamInstalled = true
+		resp.JIRAURL = upstream.GetURL()
 		err := userStore.Load(mattermostUserId, &resp.User)
 		if err == nil {
 			resp.IsConnected = true

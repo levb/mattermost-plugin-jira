@@ -13,7 +13,7 @@ import (
 	"github.com/dghubble/oauth1"
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
@@ -23,8 +23,8 @@ const keyRSAKey = "rsa_key"
 
 const RouteOAuth1Complete = "/oauth1/complete.html"
 
-type Instance struct {
-	instance.BasicInstance
+type Upstream struct {
+	instance.BasicUpstream
 
 	// The SiteURL may change as we go, so we store the PluginKey when as it was installed
 	MattermostKey string
@@ -33,22 +33,22 @@ type Instance struct {
 	rsaPrivateKey *rsa.PrivateKey
 }
 
-var _ instance.Instance = (*Instance)(nil)
+var _ instance.Upstream = (*Upstream)(nil)
 
-func New(jiraURL, mattermostKey string, rsaPrivateKey *rsa.PrivateKey) *Instance {
-	return &Instance{
-		BasicInstance: instance.BasicInstance{
-			InstanceType: Type,
-			InstanceKey:  jiraURL,
-			InstanceURL:  jiraURL,
+func New(jiraURL, mattermostKey string, rsaPrivateKey *rsa.PrivateKey) *Upstream {
+	return &Upstream{
+		BasicUpstream: instance.BasicUpstream{
+			UpstreamType: Type,
+			UpstreamKey:  jiraURL,
+			UpstreamURL:  jiraURL,
 		},
 		MattermostKey: mattermostKey,
 		rsaPrivateKey: rsaPrivateKey,
 	}
 }
 
-func FromJSON(data []byte, rsaPrivateKey *rsa.PrivateKey) (*Instance, error) {
-	inst := Instance{}
+func FromJSON(data []byte, rsaPrivateKey *rsa.PrivateKey) (*Upstream, error) {
+	inst := Upstream{}
 	err := json.Unmarshal(data, &inst)
 	if err != nil {
 		return nil, err
@@ -58,17 +58,17 @@ func FromJSON(data []byte, rsaPrivateKey *rsa.PrivateKey) (*Instance, error) {
 	return &inst, nil
 }
 
-func (serverInstance Instance) GetMattermostKey() string {
-	return serverInstance.MattermostKey
+func (serverUpstream Upstream) GetMattermostKey() string {
+	return serverUpstream.MattermostKey
 }
 
-func (serverInstance Instance) GetDisplayDetails() map[string]string {
+func (serverUpstream Upstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
-		"MattermostKey": serverInstance.MattermostKey,
+		"MattermostKey": serverUpstream.MattermostKey,
 	}
 }
 
-func (serverInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
+func (serverUpstream Upstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -77,7 +77,7 @@ func (serverInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 		}
 	}()
 
-	oauth1Config, err := serverInstance.GetOAuth1Config(pluginURL)
+	oauth1Config, err := serverUpstream.GetOAuth1Config(pluginURL)
 	if err != nil {
 		return "", err
 	}
@@ -101,7 +101,7 @@ func (serverInstance Instance) GetUserConnectURL(otsStore store.OneTimeStore,
 	return authURL.String(), nil
 }
 
-func (serverInstance Instance) GetClient(pluginURL string,
+func (serverUpstream Upstream) GetClient(pluginURL string,
 	user *store.User) (returnClient *jira.Client, returnErr error) {
 
 	defer func() {
@@ -115,14 +115,14 @@ func (serverInstance Instance) GetClient(pluginURL string,
 		return nil, errors.New("No access token, please use /jira connect")
 	}
 
-	oauth1Config, err := serverInstance.GetOAuth1Config(pluginURL)
+	oauth1Config, err := serverUpstream.GetOAuth1Config(pluginURL)
 	if err != nil {
 		return nil, err
 	}
 
 	token := oauth1.NewToken(user.Oauth1AccessToken, user.Oauth1AccessSecret)
 	httpClient := oauth1Config.Client(oauth1.NoContext, token)
-	jiraClient, err := jira.NewClient(httpClient, serverInstance.GetURL())
+	jiraClient, err := jira.NewClient(httpClient, serverUpstream.GetURL())
 	if err != nil {
 		return nil, err
 	}
@@ -130,22 +130,22 @@ func (serverInstance Instance) GetClient(pluginURL string,
 	return jiraClient, nil
 }
 
-func (serverInstance *Instance) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
+func (serverUpstream *Upstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
-		ConsumerKey:    serverInstance.MattermostKey,
+		ConsumerKey:    serverUpstream.MattermostKey,
 		ConsumerSecret: "dontcare",
 		CallbackURL:    pluginURL + "/" + RouteOAuth1Complete,
 		Endpoint: oauth1.Endpoint{
-			RequestTokenURL: serverInstance.GetURL() + "/plugins/servlet/oauth/request-token",
-			AuthorizeURL:    serverInstance.GetURL() + "/plugins/servlet/oauth/authorize",
-			AccessTokenURL:  serverInstance.GetURL() + "/plugins/servlet/oauth/access-token",
+			RequestTokenURL: serverUpstream.GetURL() + "/plugins/servlet/oauth/request-token",
+			AuthorizeURL:    serverUpstream.GetURL() + "/plugins/servlet/oauth/authorize",
+			AccessTokenURL:  serverUpstream.GetURL() + "/plugins/servlet/oauth/access-token",
 		},
-		Signer: &oauth1.RSASigner{PrivateKey: serverInstance.rsaPrivateKey},
+		Signer: &oauth1.RSASigner{PrivateKey: serverUpstream.rsaPrivateKey},
 	}, nil
 }
 
-func (serverInstance Instance) PublicKeyString() ([]byte, error) {
-	b, err := x509.MarshalPKIXPublicKey(&serverInstance.rsaPrivateKey.PublicKey)
+func (serverUpstream Upstream) PublicKeyString() ([]byte, error) {
+	b, err := x509.MarshalPKIXPublicKey(&serverUpstream.rsaPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")
 	}

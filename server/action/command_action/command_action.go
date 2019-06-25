@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package action
+package command_action
 
 import (
 	"bytes"
@@ -12,24 +12,23 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/config"
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-server/model"
-	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
 
 // HTTPAction and CommandAction are declared public so that the plugin can access their
 // internals in special cases, Action interface is not mature enough.
-type CommandAction struct {
-	*BasicAction
-	*CommandMetadata
+type Action struct {
+	action.Action
+	*Metadata
 
-	Args            []string
-	ArgsMap         map[string]string
-	CommandArgs     *model.CommandArgs
+	args            []string
+	argsMap         map[string]string
+	commandArgs     *model.CommandArgs
 	CommandResponse *model.CommandResponse
 }
 
-type CommandMetadata struct {
+type Metadata struct {
 	// MinTotalArgs and MaxTotalArgs are applied to the total number of
 	// whitespace-separated tokens, including the `/jira` and everything after
 	// it.
@@ -41,18 +40,19 @@ type CommandMetadata struct {
 	ArgNames []string
 }
 
-var _ Action = (*CommandAction)(nil)
+var _ action.Action = (*Action)(nil)
 
-// MakeCommandAction makes a new CommandAction. In case of an error, it still
-// returns a non-nil CommandAction so that the caller can RespondXXX as needed
-func MakeCommandAction(router *Router,
-	pc *mmplugin.Context, conf config.Config, commandArgs *model.CommandArgs) (string, *CommandAction, error) {
+// Make makes a new command Action. In case of an error, it still
+// returns a non-nil Action so that the caller can RespondXXX as needed
+func Make(router action.Router, inner action.Action, commandArgs *model.CommandArgs) (string, action.Action, error) {
 
-	a := &CommandAction{
-		BasicAction:     NewBasicAction(router, conf, pc, commandArgs.UserId),
-		CommandArgs:     commandArgs,
+	a := &Action{
+		Action:     inner,
+		commandArgs:     commandArgs,
 		CommandResponse: &model.CommandResponse{},
 	}
+	
+	a.Context().MattermostUserId = commandArgs.UserId
 
 	argv := strings.Fields(commandArgs.Command)
 	if len(argv) == 0 || argv[0] != "/jira" {
@@ -61,7 +61,7 @@ func MakeCommandAction(router *Router,
 	}
 	n := len(argv)
 	key := ""
-	var route *Route
+	var route *action.Route
 	for ; n > 1; n-- {
 		key = strings.Join(argv[1:n], "/")
 		if router.Routes[key] != nil {
@@ -75,11 +75,11 @@ func MakeCommandAction(router *Router,
 	}
 	commandItself := strings.Join(argv, " ")
 	argv = argv[n:]
-	a.Args = argv
+	a.args = argv
 
-	md := &CommandMetadata{}
+	md := &Metadata{}
 	if route.Metadata != nil {
-		md, _ = route.Metadata.(*CommandMetadata)
+		md, _ = route.Metadata.(*Metadata)
 		if md == nil {
 			return "", a, errors.Errorf(
 				"MakeCommandAction: misconfigured router: wrong CommandMetadata type %T", route.Metadata)
@@ -94,7 +94,7 @@ func MakeCommandAction(router *Router,
 		return "", a, errors.Errorf(
 			"expected at most %v arguments after %q", md.MaxArgc, commandItself)
 	}
-	a.CommandMetadata = md
+	a.Metadata = md
 
 	// Initialize the FormValue map
 	argsMap := map[string]string{}
@@ -104,19 +104,27 @@ func MakeCommandAction(router *Router,
 		}
 		argsMap[fmt.Sprintf("$%v", i+1)] = arg
 	}
-	a.ArgsMap = argsMap
+	a.argsMap = argsMap
 
 	return key, a, nil
 }
 
-func (commandAction *CommandAction) FormValue(name string) string {
-	if len(commandAction.ArgsMap) == 0 {
-		return ""
+func RequireHTTPAction(a action.Action) error {
+	_, ok := a.(*Action)
+	if !ok {
+		return errors.Errorf("wrong action type, expected HTTPAction, got %T", a)
 	}
-	return commandAction.ArgsMap[name]
+	return nil
 }
 
-func (commandAction *CommandAction) RespondError(code int, err error, wrap ...interface{}) error {
+func (a Action) FormValue(name string) string {
+	if len(a.argsMap) == 0 {
+		return ""
+	}
+	return a.argsMap[name]
+}
+
+func (a *Action) RespondError(code int, err error, wrap ...interface{}) error {
 	if len(wrap) > 0 {
 		fmt := wrap[0].(string)
 		if err != nil {
@@ -127,55 +135,55 @@ func (commandAction *CommandAction) RespondError(code int, err error, wrap ...in
 	}
 
 	if err != nil {
-		commandAction.respond(err.Error())
+		a.respond(err.Error())
 	}
 	return err
 }
 
-func (commandAction *CommandAction) RespondPrintf(format string, args ...interface{}) error {
-	commandAction.respond(fmt.Sprintf(format, args...))
+func (a *Action) RespondPrintf(format string, args ...interface{}) error {
+	a.respond(fmt.Sprintf(format, args...))
 	return nil
 }
 
-func (commandAction *CommandAction) RespondRedirect(redirectURL string) error {
-	commandAction.CommandResponse = &model.CommandResponse{
+func (a *Action) RespondRedirect(redirectURL string) error {
+	a.CommandResponse = &model.CommandResponse{
 		GotoLocation: redirectURL,
 	}
 	return nil
 }
 
-func (commandAction *CommandAction) RespondTemplate(templateKey, contentType string, values interface{}) error {
-	t := commandAction.Context().Templates[templateKey]
+func (a *Action) RespondTemplate(templateKey, contentType string, values interface{}) error {
+	t := a.Context().Templates[templateKey]
 	if t == nil {
-		return commandAction.RespondError(http.StatusInternalServerError, nil,
+		return a.RespondError(http.StatusInternalServerError, nil,
 			"no template found for %q", templateKey)
 	}
 	bb := &bytes.Buffer{}
 	err := t.Execute(bb, values)
 	if err != nil {
-		return commandAction.RespondError(http.StatusInternalServerError, err,
+		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
 	}
-	commandAction.respond(string(bb.Bytes()))
+	a.respond(string(bb.Bytes()))
 	return nil
 }
 
-func (commandAction *CommandAction) RespondJSON(value interface{}) error {
+func (a *Action) RespondJSON(value interface{}) error {
 	bb, err := json.Marshal(value)
 	if err != nil {
-		return commandAction.RespondError(http.StatusInternalServerError, err,
+		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
 	}
-	commandAction.respond(string(bb))
+	a.respond(string(bb))
 	return nil
 }
 
-func (commandAction *CommandAction) respond(text string) {
-	commandAction.CommandResponse = &model.CommandResponse{
+func (a *Action) respond(text string) {
+	a.CommandResponse = &model.CommandResponse{
 		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
 		Text:         text,
-		Username:     commandAction.Context().UserName,
-		IconURL:      commandAction.Context().BotIconURL,
+		Username:     a.Context().UserName,
+		IconURL:      a.Context().BotIconURL,
 		Type:         model.POST_DEFAULT,
 	}
 }

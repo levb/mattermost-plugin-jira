@@ -5,7 +5,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiracloud"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/mattermost/mattermost-server/model"
@@ -97,7 +97,7 @@ func RequireBackendUser(a action.Action) error {
 	}
 	err := action.Script{
 		RequireMattermostUserId,
-		RequireInstance,
+		RequireUpstream,
 	}.Run(a)
 	if err != nil {
 		return err
@@ -118,14 +118,14 @@ func RequireJiraClient(a action.Action) error {
 		return nil
 	}
 	err := action.Script{
-		RequireInstance,
+		RequireUpstream,
 		RequireBackendUser,
 	}.Run(a)
 	if err != nil {
 		return err
 	}
 
-	jiraClient, err := ac.Instance.GetClient(ac.PluginId, ac.User)
+	jiraClient, err := ac.Upstream.GetClient(ac.PluginId, ac.User)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -134,16 +134,16 @@ func RequireJiraClient(a action.Action) error {
 	return nil
 }
 
-func RequireInstance(a action.Action) error {
+func RequireUpstream(a action.Action) error {
 	ac := a.Context()
-	if ac.Instance != nil {
+	if ac.Upstream != nil {
 		return nil
 	}
-	be, err := ac.InstanceLoader.Current()
+	be, err := ac.UpstreamLoader.Current()
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
-	ac.Instance = be
+	ac.Upstream = be
 
 	// Important: overwrite the default UserStore with that where
 	// the keys are prefixed with the instance URL
@@ -158,7 +158,7 @@ func RequireJiraCloudJWT(a action.Action) error {
 		return nil
 	}
 	err := action.Script{
-		RequireInstance,
+		RequireUpstream,
 	}.Run(a)
 	if err != nil {
 		return err
@@ -170,7 +170,7 @@ func RequireJiraCloudJWT(a action.Action) error {
 			"no jwt found in the HTTP request")
 	}
 
-	cloudInstance, ok := ac.Instance.(*jira_cloud.Instance)
+	cloudUpstream, ok := ac.Upstream.(*jira_cloud.Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, nil,
 			"misconfigured instance type")
@@ -182,7 +182,7 @@ func RequireJiraCloudJWT(a action.Action) error {
 				"unsupported signing method: %v", token.Header["alg"])
 		}
 		// HMAC secret is a []byte
-		return []byte(cloudInstance.AtlassianSecurityContext.SharedSecret), nil
+		return []byte(cloudUpstream.AtlassianSecurityContext.SharedSecret), nil
 	})
 	if err != nil || !token.Valid {
 		return a.RespondError(http.StatusUnauthorized, err,

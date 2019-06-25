@@ -7,8 +7,7 @@ import (
 	"crypto/rsa"
 	"text/template"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 )
@@ -30,11 +29,10 @@ type Config struct {
 
 	// Service dependencies
 	API                  mmplugin.API
-	UserStore            store.UserStore
-	InstanceStore        instance.Store
-	KnownInstancesStore  instance.KnownInstancesStore
-	CurrentInstanceStore instance.CurrentInstanceStore
-	InstanceLoader       loader.InstanceLoader
+	UserStore            upstream.UserStore
+	UpstreamStore        upstream.UpstreamStore
+	KnownUpstreamsStore  upstream.KnownUpstreamsStore
+	CurrentUpstreamStore upstream.CurrentUpstreamStore
 	OneTimeStore         store.OneTimeStore
 
 	Templates map[string]*template.Template // TODO text vs html templates

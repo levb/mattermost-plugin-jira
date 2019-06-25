@@ -20,8 +20,7 @@ import (
 	commandr "github.com/mattermost/mattermost-plugin-jira/server/command"
 	httpr "github.com/mattermost/mattermost-plugin-jira/server/http"
 	"github.com/mattermost/mattermost-plugin-jira/server/config"
-	"github.com/mattermost/mattermost-plugin-jira/server/instance"
-	"github.com/mattermost/mattermost-plugin-jira/server/loader"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -42,7 +41,7 @@ var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 func (p *Plugin) OnActivate() error {
 	s := store.NewPluginStore(p.API)
 	ots := store.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
-	instanceStore, currentInstanceStore, knownInstanceStore := instance.NewInstanceStore(s)
+	instanceStore, currentUpstreamStore, knownUpstreamStore := instance.NewUpstreamStore(s)
 
 	rsaPrivateKey, err := app.EnsureRSAPrivateKey(s)
 	if err != nil {
@@ -54,7 +53,7 @@ func (p *Plugin) OnActivate() error {
 		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
-	instanceLoader := loader.New(instanceStore, currentInstanceStore, rsaPrivateKey, authTokenSecret)
+	instanceLoader := loader.New(instanceStore, currentUpstreamStore, rsaPrivateKey, authTokenSecret)
 
 	// HW FUTURE TODO: Better template management, text vs html
 	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id, "server", "dist", "templates")
@@ -70,10 +69,10 @@ func (p *Plugin) OnActivate() error {
 
 		conf.API = p.API
 		conf.UserStore = store.NewUserStore(s)
-		conf.InstanceStore = instanceStore
-		conf.CurrentInstanceStore = currentInstanceStore
-		conf.KnownInstancesStore = knownInstanceStore
-		conf.InstanceLoader = instanceLoader
+		conf.UpstreamStore = instanceStore
+		conf.CurrentUpstreamStore = currentUpstreamStore
+		conf.KnownUpstreamsStore = knownUpstreamStore
+		conf.UpstreamLoader = instanceLoader
 		conf.OneTimeStore = ots
 
 		conf.Templates = templates

@@ -33,7 +33,7 @@ func processJiraCloudInstalled(a action.Action) error {
 	}
 
 	status, err := app.ProcessJiraCloudInstalled(ac.API,
-		ac.InstanceStore, ac.CurrentInstanceStore, ac.AuthTokenSecret, request.Body)
+		ac.UpstreamStore, ac.CurrentUpstreamStore, ac.AuthTokenSecret, request.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to process atlassian-connect installed event")

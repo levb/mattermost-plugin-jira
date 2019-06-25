@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/user"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
@@ -298,7 +298,7 @@ func atomicModify(api plugin.API, key string, modify func(initialValue []byte) (
 	return nil
 }
 
-func ProcessSubscribeWebhook(api plugin.API, userStore user.UserStore, body io.Reader, botUserId string) (int, error) {
+func ProcessSubscribeWebhook(api plugin.API, userStore upstream.UserStore, body io.Reader, botUserId string) (int, error) {
 	var err error
 	var status int
 	wh, jwh, err := ParseWebhook(body)
