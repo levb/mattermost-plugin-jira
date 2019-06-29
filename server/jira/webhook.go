@@ -10,7 +10,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 )
@@ -46,7 +47,7 @@ const (
 type Webhook interface {
 	EventMask() uint64
 	PostToChannel(api plugin.API, channelId, fromUserId string) (*model.Post, int, error)
-	PostNotifications(plugin.API, store.UserStore, string) ([]*model.Post, int, error)
+	PostNotifications(plugin.API, upstream.Upstream, string) ([]*model.Post, int, error)
 }
 
 type webhook struct {
@@ -104,7 +105,7 @@ func (wh webhook) PostToChannel(api plugin.API, channelId, fromUserId string) (*
 	return post, http.StatusOK, nil
 }
 
-func (wh *webhook) PostNotifications(api plugin.API, userStore store.UserStore,
+func (wh *webhook) PostNotifications(api plugin.API, up upstream.Upstream,
 	botUserId string) ([]*model.Post, int, error) {
 
 	posts := []*model.Post{}
@@ -112,13 +113,13 @@ func (wh *webhook) PostNotifications(api plugin.API, userStore store.UserStore,
 		return nil, http.StatusOK, nil
 	}
 	for _, notification := range wh.notifications {
-		mattermostUserId, err := userStore.LoadMattermostUserId(notification.jiraUsername)
+		mattermostUserId, err := up.LoadMattermostUserId(notification.jiraUsername)
 		if err != nil {
 			return nil, http.StatusOK, nil
 		}
 
-		post, err := CreateBotDMPost(
-			api, userStore, mattermostUserId, botUserId,
+		post, err := lib.CreateBotDMPost(
+			api, up, botUserId, mattermostUserId,
 			notification.message, notification.postType)
 		if err != nil {
 			return nil, http.StatusInternalServerError, errors.WithMessage(err, "failed to create notification post")

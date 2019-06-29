@@ -21,49 +21,37 @@ const (
 
 type StoreConfig struct {
 	RSAPrivateKey   *rsa.PrivateKey `json:"none"`
-	AuthTokenSecret []byte `json:"none"`
+	AuthTokenSecret []byte          `json:"none"`
 }
 
 type Store interface {
-	UpstreamStore
-	CurrentUpstreamStore
-	KnownUpstreamsStore
-}
-
-type UpstreamStore interface {
-	Current() (Upstream, error)
 	Load(key string) (Upstream, error)
+	LoadCurrent() (Upstream, error)
+	LoadCurrentRaw() ([]byte, error)
+	LoadKnown() (map[string]string, error)
 	LoadRaw(string) ([]byte, error)
 	Store(Upstream) error
-	Delete(string) error
-}
-
-type KnownUpstreamsStore interface {
-	StoreKnown(map[string]string) error
-	LoadKnown() (map[string]string, error)
-}
-
-type CurrentUpstreamStore interface {
 	StoreCurrent(Upstream) error
-	LoadCurrentRaw() ([]byte, error)
+	StoreKnown(map[string]string) error
+	Delete(string) error
 }
 
 type LoadUpstreamFunc func(data []byte) (Upstream, error)
 
 type upstreamStore struct {
-	conf StoreConfig
-	store store.Store
+	conf          StoreConfig
+	store         store.Store
 	prefixedStore store.Store
-	loadUserFunc LoadUserFunc
-	loaders map[string]LoadUpstreamFunc
+	loadUserFunc  LoadUserFunc
+	loaders       map[string]LoadUpstreamFunc
 }
 
 func NewStore(conf StoreConfig, s store.Store, loadUserFunc LoadUserFunc) Store {
 	return &upstreamStore{
-		store: s,
-		prefixedStore:        store.NewHashedKeyStore(s, prefixUpstream),
-		conf:        conf,
-		loadUserFunc: loadUserFunc,
+		store:         s,
+		prefixedStore: store.NewHashedKeyStore(s, prefixUpstream),
+		conf:          conf,
+		loadUserFunc:  loadUserFunc,
 	}
 }
 
@@ -74,11 +62,11 @@ func (s upstreamStore) MakeUpstream(key, url, typ string, loadUserFunc LoadUserF
 	return &upstream{
 		config: Config{
 			StoreConfig: s.conf,
-			Key: key,
-			URL: url,
-			Type: typ,
+			Key:         key,
+			URL:         url,
+			Type:        typ,
 		},
-		store: s.store,
+		store:        s.store,
 		loadUserFunc: s.loadUserFunc,
 	}
 }
@@ -88,7 +76,7 @@ func (s *upstreamStore) Register(typ string, loaderf LoadUpstreamFunc) {
 }
 
 func (s upstreamStore) Load(key string) (Upstream, error) {
-	up, err := s.load(func () ([]byte, error) {
+	up, err := s.load(func() ([]byte, error) {
 		return s.LoadRaw(key)
 	})
 	if err != nil {
@@ -97,7 +85,7 @@ func (s upstreamStore) Load(key string) (Upstream, error) {
 	return up, nil
 }
 
-func (s upstreamStore) Current() (Upstream, error) {
+func (s upstreamStore) LoadCurrent() (Upstream, error) {
 	up, err := s.load(s.LoadCurrentRaw)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to load current upstream")
@@ -121,8 +109,8 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 	upconf := up.Config()
 	loaderf := s.loaders[upconf.Type]
 	if loaderf == nil {
-		return nil, 
-		errors.Errorf("upstream %q has unsupported type: %q", upconf.Key, upconf.Type)
+		return nil,
+			errors.Errorf("upstream %q has unsupported type: %q", upconf.Key, upconf.Type)
 	}
 
 	newUp, err := loaderf(data)

@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jiracloud
+package jira_cloud
 
 import (
 	"context"
@@ -13,18 +13,19 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/andygrunwald/go-jira"
+	gojira "github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
 	ajwt "github.com/rbriski/atlassian-jwt"
 	oauth2_jira "golang.org/x/oauth2/jira"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
 const Type = "cloud"
 
-type Upstream struct {
+type jiraCloudUpstream struct {
 	upstream.Upstream
 
 	// Initially a new instance is created with an expiration time. The
@@ -39,7 +40,6 @@ type Upstream struct {
 
 	// Runtime data, not marshalled to JSON, not saved to the Store
 	atlassianSecurityContext *AtlassianSecurityContext
-	authTokenSecret          []byte
 }
 
 const UserLandingPageKey = "user-redirect"
@@ -57,33 +57,41 @@ type AtlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func NewUpstream(up upstream.Upstream, installed bool, rawASC string,
-	asc *AtlassianSecurityContext, authTokenSecret []byte) Upstream {
+func NewUpstream(store store.Store, installed bool, rawASC string,
+	asc *AtlassianSecurityContext, authTokenSecret []byte) upstream.Upstream {
 
-	upstream := &Upstream{
-		Upstream: up,
+	conf := upstream.Config{
+		StoreConfig: upstream.StoreConfig{
+			AuthTokenSecret: authTokenSecret,
+		},
+		Key:  asc.BaseURL,
+		URL:  asc.BaseURL,
+		Type: Type,
+	}
+
+	up := &jiraCloudUpstream{
+		Upstream:                    upstream.NewUpstream(conf, store, jira.UnmarshalUser),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
-		authTokenSecret:             authTokenSecret,
 	}
-	
-	upstream.Config().URL = asc.BaseURL
-	return upstream
+
+	return up
 }
 
-func FromJSON(data, authTokenSecret []byte) (*Upstream, error) {
-	up := Upstream{}
+func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, error) {
+	up := jiraCloudUpstream{}
+	*(up.Config()) = config
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
+	up.Config().Key = up.atlassianSecurityContext.BaseURL
 	up.Config().URL = up.atlassianSecurityContext.BaseURL
-	up.Config().AuthTokenSecret = authTokenSecret
 	return &up, nil
 }
 
-func (up upstream) GetDisplayDetails() map[string]string {
+func (up jiraCloudUpstream) GetDisplayDetails() map[string]string {
 	if !up.Installed {
 		return map[string]string{
 			"Setup": "In progress",
@@ -98,7 +106,7 @@ func (up upstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up Upstream) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up jiraCloudUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -111,7 +119,7 @@ func (up Upstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	if err != nil {
 		return "", err
 	}
-	token, err := cloudUpstream.NewAuthToken(mattermostUserId, secret)
+	token, err := up.NewAuthToken(mattermostUserId, secret)
 	if err != nil {
 		return "", err
 	}
@@ -119,45 +127,45 @@ func (up Upstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	v := url.Values{}
 	v.Add(ArgMMToken, token)
 	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
-		cloudUpstream.UpstreamURL,
-		cloudUpstream.UpstreamURL,
-		cloudUpstream.atlassianSecurityContext.Key,
+		up.Config().URL,
+		up.Config().URL,
+		up.atlassianSecurityContext.Key,
 		UserLandingPageKey,
 		v.Encode(),
 	), nil
 }
 
-func (jci Upstream) GetClient(pluginURL string, user *store.User) (*jira.Client, error) {
+func (up jiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
+
 	oauth2Conf := oauth2_jira.Config{
-		BaseURL: jci.UpstreamURL,
-		// TODO replace with ID
-		Subject: user.Name,
+		BaseURL: up.Config().URL,
+		Subject: user.UpstreamId(),
 	}
 
-	oauth2Conf.Config.ClientID = jci.atlassianSecurityContext.OAuthClientId
-	oauth2Conf.Config.ClientSecret = jci.atlassianSecurityContext.SharedSecret
+	oauth2Conf.Config.ClientID = up.atlassianSecurityContext.OAuthClientId
+	oauth2Conf.Config.ClientSecret = up.atlassianSecurityContext.SharedSecret
 	oauth2Conf.Config.Endpoint.AuthURL = "https://auth.atlassian.io"
 	oauth2Conf.Config.Endpoint.TokenURL = "https://auth.atlassian.io/oauth2/token"
 
 	httpClient := oauth2Conf.Client(context.Background())
 
-	jiraClient, err := jira.NewClient(httpClient, oauth2Conf.BaseURL)
+	jiraClient, err := gojira.NewClient(httpClient, oauth2Conf.BaseURL)
 	return jiraClient, err
 }
 
 // Creates a "bot" client with a JWT
-func (jci Upstream) getClientForServer() (*jira.Client, error) {
+func (up jiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
 	jwtConf := &ajwt.Config{
-		Key:          jci.atlassianSecurityContext.Key,
-		ClientKey:    jci.atlassianSecurityContext.ClientKey,
-		SharedSecret: jci.atlassianSecurityContext.SharedSecret,
-		BaseURL:      jci.atlassianSecurityContext.BaseURL,
+		Key:          up.atlassianSecurityContext.Key,
+		ClientKey:    up.atlassianSecurityContext.ClientKey,
+		SharedSecret: up.atlassianSecurityContext.SharedSecret,
+		BaseURL:      up.atlassianSecurityContext.BaseURL,
 	}
 
-	return jira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
+	return gojira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (jci Upstream) JWTFromHTTPRequest(r *http.Request) (
+func (up jiraCloudUpstream) JWTFromHTTPRequest(r *http.Request) (
 	token *jwt.Token, rawToken string, status int, err error) {
 
 	tokenString := r.FormValue("jwt")
@@ -171,7 +179,7 @@ func (jci Upstream) JWTFromHTTPRequest(r *http.Request) (
 				"unsupported signing method: %v", token.Header["alg"])
 		}
 		// HMAC secret is a []byte
-		return []byte(jci.atlassianSecurityContext.SharedSecret), nil
+		return []byte(up.atlassianSecurityContext.SharedSecret), nil
 	})
 	if err != nil || !token.Valid {
 		return nil, "", http.StatusUnauthorized, errors.WithMessage(err, "failed to validatte JWT")

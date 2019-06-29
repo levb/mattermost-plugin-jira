@@ -4,33 +4,34 @@
 package upstream
 
 import (
-	"fmt"
 	"crypto/md5"
-	
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
 type UserStore interface {
-	StoreUser(mattermostUserId string, user User) error
-	DeleteUser(mattermostUserId, userKey string) error
+	StoreUser(user User) error
+	DeleteUser(mattermostUserId, upstreamUserId string) error
 	LoadUser(mattermostUserId string) (User, error)
-	LoadMattermostUserId(userKey string) (string, error)
+	LoadMattermostUserId(upstreamUserId string) (string, error)
 }
 
 type LoadUserFunc func(data []byte) (User, error)
 
-func (up upstream) StoreUser(mattermostUserId string, user User) error {
-	mmkey := up.userkey(mattermostUserId)
-	upkey := up.userkey(user.Key())
-	err := store.StoreJSON(up.store, mmkey, user)
+func (up upstream) StoreUser(u User) error {
+	mmkey := up.userkey(u.MattermostId())
+	upkey := up.userkey(u.UpstreamId())
+
+	err := store.StoreJSON(up.store, mmkey, u)
 	if err != nil {
-		return errors.WithMessagef(err, "failed to store upstream user for %q", mattermostUserId)
+		return errors.WithMessagef(err, "failed to store upstream user for %q", u.MattermostId())
 	}
-	err = store.StoreJSON(up.store, upkey, mattermostUserId)
+	err = store.StoreJSON(up.store, upkey, u.MattermostId())
 	if err != nil {
-		return errors.WithMessagef(err, "failed to store mattermost Id for upstream user %q", user.DisplayName())
+		return errors.WithMessagef(err, "failed to store mattermost Id for upstream user %q", u.UpstreamDisplayName())
 	}
 	return nil
 }
@@ -43,23 +44,32 @@ func (up upstream) LoadUser(mattermostUserId string) (User, error) {
 			"failed to load upstream user for: %q", mattermostUserId)
 	}
 
-	return up.loadUserFunc(data)
+	u, err := up.loadUserFunc(data)
+	if err != nil {
+		return nil, errors.WithMessagef(err,
+			"failed to unmarshal user for: %q", mattermostUserId)
+	}
+	if u.MattermostId() == "" && u.MattermostId() != mattermostUserId {
+		return nil, errors.Errorf("stored user id mismatch: %q", mattermostUserId)
+	}
+
+	return u, nil
 }
 
-func (up upstream) LoadMattermostUserId(upstreamUserKey string) (string, error) {
-	upkey := up.userkey(upstreamUserKey)
+func (up upstream) LoadMattermostUserId(upstreamUserId string) (string, error) {
+	upkey := up.userkey(upstreamUserId)
 	mattermostUserId := ""
 	err := store.LoadJSON(up.store, upkey, &mattermostUserId)
 	if err != nil {
 		return "", errors.WithMessagef(err,
-			"failed to load Mattermost user ID for Jira user: %q", upstreamUserKey)
+			"failed to load Mattermost user ID for upstream user: %q", upstreamUserId)
 	}
 	return mattermostUserId, nil
 }
 
-func (up upstream) DeleteUser(mattermostUserId, upstreamUserKey string) error {
+func (up upstream) DeleteUser(mattermostUserId, upstreamUserId string) error {
 	mmkey := up.userkey(mattermostUserId)
-	upkey := up.userkey(upstreamUserKey)
+	upkey := up.userkey(upstreamUserId)
 	err := up.store.Delete(mmkey)
 	if err != nil {
 		return err

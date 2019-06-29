@@ -113,7 +113,7 @@ func CreateIssue(
 
 	// Reply to the post with the issue link that was created
 	replyPost := &model.Post{
-		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", up.GetURL(), createdIssue.Key),
+		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", up.Config().URL, createdIssue.Key),
 		ChannelId: channelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -189,7 +189,7 @@ func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Cli
 	}
 
 	permalinkMessage := fmt.Sprintf("*@%s attached a* [message|%s] *from @%s*\n",
-		user.DisplayName(), permalink, commentUser.Username)
+		user.UpstreamDisplayName(), permalink, commentUser.Username)
 
 	var jiraComment jira.Comment
 	jiraComment.Body = permalinkMessage
@@ -212,7 +212,7 @@ func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Cli
 	// Reply to the post with the issue link that was created
 	reply := &model.Post{
 		Message: fmt.Sprintf("Message attached to [%v](%v/browse/%v)",
-			req.IssueKey, up.GetURL(), req.IssueKey),
+			req.IssueKey, up.Config().URL, req.IssueKey),
 		ChannelId: post.ChannelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -295,6 +295,6 @@ func TransitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, to
 		return "", err
 	}
 
-	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, up.GetURL(), issueKey, transitionToUse.To.Name)
+	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, up.Config().URL, issueKey, transitionToUse.To.Name)
 	return msg, nil
 }

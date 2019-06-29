@@ -7,35 +7,37 @@ import (
 	"crypto/rsa"
 	"text/template"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
-	mmplugin "github.com/mattermost/mattermost-server/plugin"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-server/plugin"
 )
 
-type StoredConfig struct {
+// Config is the main plugin configuration, stored in the Mattermost config,
+// and updated via Mattermost system console, CLI, or other means
+type Config struct {
 	// Bot username
-	UserName string `json:"username"`
+	BotUserName string `json:"username"`
 
 	// Legacy 1.x Webhook secret
 	WebhookSecret string `json:"secret"`
 }
 
-type Config struct {
-	StoredConfig
+// Context is the run-time execution context
+type Context struct {
+	Config
 
 	// Plugin-wide secrets
 	RSAPrivateKey   *rsa.PrivateKey
 	AuthTokenSecret []byte
 
 	// Service dependencies
-	API                  mmplugin.API
-	UserStore            upstream.UserStore
-	UpstreamStore        upstream.UpstreamStore
-	KnownUpstreamsStore  upstream.KnownUpstreamsStore
-	CurrentUpstreamStore upstream.CurrentUpstreamStore
-	OneTimeStore         store.OneTimeStore
+	API           plugin.API
+	UpstreamStore upstream.Store
+	OneTimeStore  store.OneTimeStore
 
-	Templates map[string]*template.Template // TODO text vs html templates
+	// Parsed and cached templates
+	// TODO store text vs html templates
+	Templates map[string]*template.Template
 
 	MattermostSiteURL string
 	PluginId          string

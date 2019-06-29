@@ -298,7 +298,7 @@ func atomicModify(api plugin.API, key string, modify func(initialValue []byte) (
 	return nil
 }
 
-func ProcessSubscribeWebhook(api plugin.API, userStore upstream.UserStore, body io.Reader, botUserId string) (int, error) {
+func ProcessSubscribeWebhook(api plugin.API, up upstream.Upstream, body io.Reader, botUserId string) (int, error) {
 	var err error
 	var status int
 	wh, jwh, err := ParseWebhook(body)
@@ -318,7 +318,7 @@ func ProcessSubscribeWebhook(api plugin.API, userStore upstream.UserStore, body 
 		}
 	}
 
-	_, status, err = wh.PostNotifications(api, userStore, botUserId)
+	_, status, err = wh.PostNotifications(api, up, botUserId)
 	if err != nil {
 		return status, err
 	}

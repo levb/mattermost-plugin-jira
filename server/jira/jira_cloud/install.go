@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jiracloud
+package jira_cloud
 
 import (
 	"encoding/json"
@@ -9,18 +9,18 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
+
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-server/plugin"
 )
 
 func ProcessInstalled(
 	api plugin.API,
 	s store.Store,
-	upstreamStore upstream.UpstreamStore,
-	currentUpstreamStore upstream.CurrentUpstreamStore,
+	upstore upstream.Store,
 	authTokenSecret []byte,
 	mattermostKey string,
 	body io.Reader) (int, error) {
@@ -38,8 +38,7 @@ func ProcessInstalled(
 
 	// Only allow this operation once, a Jira upstream must already exist
 	// for asc.BaseURL but not Installed.
-	up := Upstream{}
-	err = upstreamStore.Load(asc.BaseURL, &up)
+	up, err := upstore.Load(asc.BaseURL)
 	if err == store.ErrNotFound {
 		return http.StatusNotFound,
 			errors.Errorf("Jira upstream %q must first be added to Mattermost", asc.BaseURL)
@@ -48,27 +47,24 @@ func ProcessInstalled(
 		return http.StatusInternalServerError,
 			errors.WithMessagef(err, "failed to load Jira upstream %q", asc.BaseURL)
 	}
-	if up.Installed {
+	cloudUp, ok := up.(*jiraCloudUpstream)
+	if !ok {
+		return http.StatusInternalServerError,
+			errors.Errorf("expected a Jira Cloud upstream, got %T", up)
+	}
+	if cloudUp.Installed {
 		return http.StatusForbidden,
 			errors.Errorf("Jira upstream %q is already installed", asc.BaseURL)
 	}
 
-	upstream := upstream.NewUpstream(upstream.UpstreamConfig{
-		AuthTokenSecret: authTokenSecret,
-		Key: asc.BaseURL, 
-		URL: asc.BaseURL, 
-		Type: Type,
-		MattermostKey:  mattermostKey,
-	}, s)
-
-	up = NewUpstream(upstream, true, string(data), &asc, authTokenSecret)
+	up = NewUpstream(s, true, string(data), &asc, authTokenSecret)
 
 	// UpstreamStore.Store also updates the list of known Jira upstreams
-	err = upstreamStore.Store(up)
+	err = upstore.Store(up)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	err = jira.StoreCurrentUpstreamAndNotify(api, currentUpstreamStore, cloudUpstream)
+	err = lib.StoreCurrentUpstreamNotify(api, upstore, up)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

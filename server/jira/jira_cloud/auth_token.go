@@ -1,7 +1,7 @@
-// Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2019-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jiracloud
+package jira_cloud
 
 import (
 	"crypto/aes"
@@ -25,7 +25,7 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (cloudUpstream Upstream) NewAuthToken(mattermostUserID,
+func (up jiraCloudUpstream) NewAuthToken(mattermostUserID,
 	secret string) (returnToken string, returnErr error) {
 
 	t := AuthToken{
@@ -39,7 +39,7 @@ func (cloudUpstream Upstream) NewAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	encrypted, err := encrypt(jsonBytes, cloudUpstream.authTokenSecret)
+	encrypted, err := encrypt(jsonBytes, up.Config().AuthTokenSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
@@ -47,7 +47,7 @@ func (cloudUpstream Upstream) NewAuthToken(mattermostUserID,
 	return encode(encrypted)
 }
 
-func (cloudUpstream Upstream) ParseAuthToken(encoded string) (string, string, error) {
+func (up jiraCloudUpstream) ParseAuthToken(encoded string) (string, string, error) {
 	t := AuthToken{}
 	err := func() error {
 		decoded, err := decode(encoded)
@@ -55,7 +55,7 @@ func (cloudUpstream Upstream) ParseAuthToken(encoded string) (string, string, er
 			return err
 		}
 
-		jsonBytes, err := decrypt(decoded, cloudUpstream.authTokenSecret)
+		jsonBytes, err := decrypt(decoded, up.Config().AuthTokenSecret)
 		if err != nil {
 			return err
 		}

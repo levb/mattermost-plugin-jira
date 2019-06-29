@@ -1,21 +1,21 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package action
+package http_action
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/pkg/errors"
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/pkg/errors"
 )
 
 type Action struct {
-	action.Action 
+	action.Action
 
-	r            *http.Request
+	r      *http.Request
 	rw     http.ResponseWriter
 	status int
 }
@@ -24,9 +24,9 @@ var _ action.Action = (*Action)(nil)
 
 func Make(router action.Router, inner action.Action, r *http.Request, w http.ResponseWriter) action.Action {
 	a := &Action{
-		Action:    inner,
-		r:        r,
-		rw: w,
+		Action: inner,
+		r:      r,
+		rw:     w,
 	}
 	a.Context().MattermostUserId = r.Header.Get("Mattermost-User-Id")
 	return a

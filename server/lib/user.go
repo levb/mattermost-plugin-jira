@@ -1,36 +1,19 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jira
+package lib
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"github.com/andygrunwald/go-jira"
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
-// wrap jira.User into a different type name to avoid conflicts
-type jiraUser jira.User
-
-type User struct {
-	upstream.User
-	jiraUser
-}
-
-func UnmarshalUser(data []byte) (upstream.User, error) {
-	u := User{}
-	err := json.Unmarshal(data, &u)
-	if err != nil {
-		return nil, err
-	}
-	return u, nil
-}
-
+// GetUserConnectURL is a convenience function that checks that the user doesn't
+// already exist before calling upstream's GetUserConnectURL.
 func GetUserConnectURL(pluginURL string, oneTimeStore store.OneTimeStore,
 	up upstream.Upstream, mattermostUserId string) (string, int, error) {
 	// Users shouldn't be able to make multiple connections.
@@ -67,14 +50,16 @@ type GetUserInfoResponse struct {
 func GetUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoResponse {
 	resp := GetUserInfoResponse{}
 	up, err := upstore.LoadCurrent()
-	if err == nil {
-		resp.UpstreamInstalled = true
-		resp.UpstreamURL = up.Config().URL
-		resp.User, err = up.LoadUser(mattermostUserId)
-		if err == nil {
-			resp.IsConnected = true
-		}
+	if err != nil {
+		return resp
 	}
+	resp.UpstreamInstalled = true
+	resp.UpstreamURL = up.Config().URL
+	resp.User, err = up.LoadUser(mattermostUserId)
+	if err == nil {
+		resp.IsConnected = true
+	}
+
 	return resp
 }
 

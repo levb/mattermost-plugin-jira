@@ -5,29 +5,32 @@ package action
 
 import (
 	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/mattermost/mattermost-server/model"
-	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/config"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/plugin"
 )
 
+// Context has pre-computed values for an action
 type Context struct {
-	config.Config `json:"none"`
+	config.Context `json:"none"`
 
 	PluginContext *plugin.Context
-	Upstream         upstream.Upstream
-	User             upstream.User
+	Upstream      upstream.Upstream
+	User          upstream.User
+	// TODO proxy via an `upstream.Client`?
 	JiraClient       *jira.Client
 	LogErr           error
 	MattermostUser   *model.User
 	MattermostUserId string
-	UpstreamJWT       *jwt.Token
-	UpstreamRawJWT    string
+	UpstreamJWT      *jwt.Token
+	UpstreamRawJWT   string
 }
 
 type Action interface {
@@ -64,10 +67,10 @@ type action struct {
 
 var _ Action = (*action)(nil)
 
-func NewAction(router *Router, conf config.Config, pc *plugin.Context, mattermostUserId string) Action {
+func NewAction(router *Router, context config.Context, pc *plugin.Context, mattermostUserId string) Action {
 	return &action{
 		context: Context{
-			Config:           conf,
+			Context:          context,
 			PluginContext:    pc,
 			MattermostUserId: mattermostUserId,
 		},
@@ -98,16 +101,16 @@ func (a action) RespondJSON(value interface{}) error {
 	return nil
 }
 
-func (a action) RespondRedirect(redirectURL string) error{
+func (a action) RespondRedirect(redirectURL string) error {
 	return nil
 }
 
-func (a action) RespondError(httpStatusCode int, err error, wrap ...interface{})error {
+func (a action) RespondError(httpStatusCode int, err error, wrap ...interface{}) error {
 	return nil
 }
 
 func (a action) RespondPrintf(format string, args ...interface{}) error {
-	return errors.New("not implemented")	
+	return errors.New("not implemented")
 }
 
 func (a action) FormValue(string) string {

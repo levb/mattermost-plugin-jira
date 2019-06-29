@@ -47,11 +47,11 @@ var _ action.Action = (*Action)(nil)
 func Make(router action.Router, inner action.Action, commandArgs *model.CommandArgs) (string, action.Action, error) {
 
 	a := &Action{
-		Action:     inner,
+		Action:          inner,
 		commandArgs:     commandArgs,
 		CommandResponse: &model.CommandResponse{},
 	}
-	
+
 	a.Context().MattermostUserId = commandArgs.UserId
 
 	argv := strings.Fields(commandArgs.Command)
@@ -182,7 +182,7 @@ func (a *Action) respond(text string) {
 	a.CommandResponse = &model.CommandResponse{
 		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
 		Text:         text,
-		Username:     a.Context().UserName,
+		Username:     a.Context().BotUserName,
 		IconURL:      a.Context().BotIconURL,
 		Type:         model.POST_DEFAULT,
 	}

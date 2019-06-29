@@ -1,7 +1,7 @@
 // Copyright (c) 2019-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jira
+package upstream
 
 import (
 	"testing"
@@ -31,7 +31,7 @@ func TestNormalizeInstallURL(t *testing.T) {
 		{"//xyz.com/", "https://xyz.com", ""},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
-			out, err := normalizeInstallURL(tc.in)
+			out, err := NormalizeUpstreamURL(tc.in)
 			require.Equal(t, tc.out, out)
 			errTxt := ""
 			if err != nil {
