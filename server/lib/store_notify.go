@@ -32,12 +32,8 @@ func StoreCurrentUpstreamNotify(api plugin.API, upstreamStore upstream.Store, up
 	return nil
 }
 
-func StoreUserNotify(api plugin.API,
-	userStore upstream.UserStore,
-	mattermostUserId string,
-	user upstream.User) error {
-
-	err := userStore.StoreUser(user)
+func StoreUserNotify(api plugin.API, up upstream.Upstream, u upstream.User) error {
+	err := up.StoreUser(u)
 	if err != nil {
 		return err
 	}
@@ -47,18 +43,14 @@ func StoreUserNotify(api plugin.API,
 		map[string]interface{}{
 			"is_connected": true,
 		},
-		&model.WebsocketBroadcast{UserId: mattermostUserId},
+		&model.WebsocketBroadcast{UserId: u.MattermostId()},
 	)
 
 	return nil
 }
 
-func DeleteUserNotify(
-	api plugin.API,
-	userStore upstream.UserStore,
-	mattermostUserId, userKey string,
-) error {
-	err := userStore.DeleteUser(mattermostUserId, userKey)
+func DeleteUserNotify(api plugin.API, up upstream.Upstream, u upstream.User) error {
+	err := up.DeleteUser(u)
 	if err != nil {
 		return err
 	}
@@ -68,7 +60,7 @@ func DeleteUserNotify(
 		map[string]interface{}{
 			"is_connected": false,
 		},
-		&model.WebsocketBroadcast{UserId: mattermostUserId},
+		&model.WebsocketBroadcast{UserId: u.MattermostId()},
 	)
 
 	return nil

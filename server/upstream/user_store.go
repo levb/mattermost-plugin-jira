@@ -12,13 +12,6 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
-type UserStore interface {
-	StoreUser(user User) error
-	DeleteUser(mattermostUserId, upstreamUserId string) error
-	LoadUser(mattermostUserId string) (User, error)
-	LoadMattermostUserId(upstreamUserId string) (string, error)
-}
-
 type LoadUserFunc func(data []byte) (User, error)
 
 func (up upstream) StoreUser(u User) error {
@@ -67,9 +60,9 @@ func (up upstream) LoadMattermostUserId(upstreamUserId string) (string, error) {
 	return mattermostUserId, nil
 }
 
-func (up upstream) DeleteUser(mattermostUserId, upstreamUserId string) error {
-	mmkey := up.userkey(mattermostUserId)
-	upkey := up.userkey(upstreamUserId)
+func (up upstream) DeleteUser(u User) error {
+	mmkey := up.userkey(u.MattermostId())
+	upkey := up.userkey(u.UpstreamId())
 	err := up.store.Delete(mmkey)
 	if err != nil {
 		return err

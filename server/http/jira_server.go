@@ -7,111 +7,39 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/dghubble/oauth1"
-
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/filters"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiraserver"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
-	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_server"
 )
 
 func completeJiraServerOAuth1(a action.Action) error {
 	ac := a.Context()
-	request, err := action.HTTPRequest(a)
+	r, err := http_action.Request(a)
 	if err != nil {
 		return err
 	}
+	up, _ := ac.Upstream.(*jira_server.JiraServerUpstream)
 
-	requestToken, verifier, err := oauth1.ParseAuthorizationCallback(request)
+	u, status, err := up.CompleteOAuth1(ac.API, ac.OneTimeStore, r, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"failed to parse callback request from Jira")
+		a.RespondError(status, err)
 	}
 
-	oauthTmpCredentials, err := ac.OneTimeStore.LoadOauth1aTemporaryCredentials(ac.MattermostUserId)
-	if err != nil || oauthTmpCredentials == nil || len(oauthTmpCredentials.Token) <= 0 {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"failed to get temporary credentials for %q", ac.MattermostUserId)
-	}
-
-	if oauthTmpCredentials.Token != requestToken {
-		return a.RespondError(http.StatusUnauthorized, nil, "request token mismatch")
-	}
-
-	serverUpstream, ok := ac.Upstream.(*jira_server.Upstream)
-	if !ok {
-		return a.RespondError(http.StatusInternalServerError, nil, "misconfiguration, wrong Action type")
-	}
-
-	oauth1Config, err := serverUpstream.GetOAuth1Config(ac.PluginURL)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"failed to obtain oauth1 config")
-	}
-
-	// Although we pass the oauthTmpCredentials as required here. The Jira server does not appar to validate it.
-	// We perform the check above for reuse so this is irrelavent to the security from our end.
-	accessToken, accessSecret, err := oauth1Config.AccessToken(requestToken, oauthTmpCredentials.Secret, verifier)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err,
-			"failed to obtain oauth1 access token")
-	}
-
-	user := &store.User{
-		Oauth1AccessToken:  accessToken,
-		Oauth1AccessSecret: accessSecret,
-	}
-	jiraClient, err := serverUpstream.GetClient(ac.PluginURL, user)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-	juser, _, err := jiraClient.User.GetSelf()
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-	user.User = *juser
-	// Set default settings the first time a user connects
-	user.Settings = &store.UserSettings{Notifications: true}
-
-	err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Upstream, ac.MattermostUserId, user)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-	a.Debugf("Stored and notified: %s %+v", ac.MattermostUserId, user)
-
-	return a.RespondTemplate(request.URL.Path, "text/html", struct {
+	return http_action.RespondTemplate(a, "text/html", struct {
 		MattermostDisplayName string
 		JiraDisplayName       string
 		RevokeURL             string
 	}{
-		JiraDisplayName:       juser.DisplayName + " (" + juser.Name + ")",
-		MattermostDisplayName: ac.MattermostUser.GetDisplayName(model.SHOW_NICKNAME_FULLNAME),
+		JiraDisplayName:       u.UpstreamDisplayName(),
+		MattermostDisplayName: u.MattermostDisplayName(),
 		RevokeURL:             path.Join(ac.PluginURLPath, routeUserDisconnect),
 	})
 }
 
 func getJiraServerOAuth1PublicKey(a action.Action) error {
-	err := action.Script{
-		filters.RequireHTTPGet,
-		filters.RequireUpstream,
-		filters.RequireMattermostUserId,
-	}.Run(a)
-	if err != nil {
-		return err
-	}
 	ac := a.Context()
-	serverUpstream, ok := ac.Upstream.(*jira_server.Upstream)
-	if !ok {
-		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
-	}
-
-	if !ac.API.HasPermissionTo(ac.MattermostUserId, model.PERMISSION_MANAGE_SYSTEM) {
-		return a.RespondError(http.StatusForbidden, nil, "forbidden")
-	}
-
-	pkey, err := serverUpstream.PublicKeyString()
+	serverUp := ac.Upstream.(*jira_server.JiraServerUpstream)
+	pkey, err := serverUp.PublicKeyString()
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err, "failed to load public key")
 	}

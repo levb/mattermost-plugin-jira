@@ -101,20 +101,6 @@ func (a Action) RespondJSON(value interface{}) error {
 	return nil
 }
 
-func Log(action action.Action) error {
-	a, _ := action.(*Action)
-	if a.status == 0 {
-		a.status = http.StatusOK
-	}
-	if a.Context().LogErr != nil {
-		a.Infof("http: %v %s %v", a.status, a.r.URL.String(),
-			a.Context().LogErr)
-	} else {
-		a.Debugf("http: %v %s", a.status, a.r.URL.String())
-	}
-	return nil
-}
-
 func Require(a action.Action) error {
 	_, ok := a.(*Action)
 	if !ok {
@@ -131,4 +117,17 @@ func RespondTemplate(action action.Action, contentType string, values interface{
 func Request(action action.Action) (*http.Request, error) {
 	a, _ := action.(*Action)
 	return a.r, nil
+}
+
+func LogAction(a action.Action) error {
+	httpAction, ok := a.(*Action)
+	switch {
+	case !ok:
+		a.Errorf("http: error: misconfiguration, wrong action type %T", a)
+	case a.Context().LogErr != nil:
+		a.Infof("http: %v %v, error:%v", httpAction.status, httpAction.r.URL, a.Context().LogErr)
+	default:
+		a.Debugf("http: %v %v", httpAction.status, httpAction.r.URL)
+	}
+	return nil
 }

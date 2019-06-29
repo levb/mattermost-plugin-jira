@@ -6,8 +6,10 @@ import (
 	"strconv"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/filters"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/command_action"
+
+	//"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
 )
 
 const helpText = "###### Mattermost Jira Plugin - Slash Command Help\n" +
@@ -29,33 +31,21 @@ const helpText = "###### Mattermost Jira Plugin - Slash Command Help\n" +
 	""
 
 var Router = &action.Router{
-	LogHandler: func(a action.Action) error {
-		commandAction, ok := a.(*action.CommandAction)
-		ac := a.Context()
-		switch {
-		case !ok:
-			a.Errorf("command: %q error: misconfiguration, wrong Action type", commandAction.CommandArgs.Command)
-		case ac.LogErr != nil:
-			a.Infof("command: %q error:%v", commandAction.CommandArgs.Command, ac.LogErr)
-		default:
-			a.Debugf("command: %q", commandAction.CommandArgs.Command)
-		}
-		return nil
-	},
-	DefaultHandler: help,
+	Before:  action.Script{command_action.LogAction},
+	Default: help,
 
 	// MattermostUserID is set for all commands, so no special "Requir" for it
 	Routes: map[string]*action.Route{
-		"connect":    action.NewRoute(filters.RequireUpstream, connect),
-		"disconnect": action.NewRoute(filters.RequireBackendUser, disconnect),
-		"settings/notifications/": action.NewRoute(filters.RequireJiraClient, notifications).With(
-			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1,
+		"connect":    action.NewRoute(lib.RequireUpstream, connect),
+		"disconnect": action.NewRoute(lib.RequireUpstreamUser, disconnect),
+		"settings/notifications/": action.NewRoute(lib.RequireUpstreamClient, notifications).With(
+			&command_action.Metadata{MinArgc: 1, MaxArgc: 1,
 				ArgNames: []string{"value"}}),
-		"instance/list": action.NewRoute(filters.RequireMattermostSysAdmin, list),
-		"instance/select": action.NewRoute(filters.RequireMattermostSysAdmin, selectUpstream).With(
-			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
-		"instance/delete": action.NewRoute(filters.RequireMattermostSysAdmin, deleteUpstream).With(
-			&action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
+		"upstream/list": action.NewRoute(lib.RequireMattermostSysAdmin, list),
+		"upstream/select": action.NewRoute(lib.RequireMattermostSysAdmin, selectUpstream).With(
+			&command_action.Metadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
+		"upstream/delete": action.NewRoute(lib.RequireMattermostSysAdmin, deleteUpstream).With(
+			&command_action.Metadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
 	},
 	// 	RequireMattermostSysAdmin,
 	// "transition": {
@@ -97,12 +87,12 @@ func connect(a action.Action) error {
 
 func disconnect(a action.Action) error {
 	ac := a.Context()
-	err := app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
+	err := lib.DeleteUserNotify(ac.API, ac.Upstream, ac.User)
 	if err != nil {
 		return a.RespondError(0, err, "Could not complete the **disconnection** request")
 	}
 	return a.RespondPrintf("You have successfully disconnected your Jira account (**%s**).",
-		ac.User.DisplayName)
+		ac.User.UpstreamDisplayName())
 }
 
 const (
@@ -123,7 +113,7 @@ func notifications(a action.Action) error {
 		return a.RespondPrintf(
 			"`/jira settings notifications [value]`\nInvalid value %q. Accepted values are: `on` or `off`.", valueStr)
 	}
-	err := app.StoreUserSettingsNotifications(ac.UserStore, ac.MattermostUserId, ac.User, value)
+	err := lib.StoreUserSettingsNotifications(ac.Upstream, ac.User, value)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -132,7 +122,7 @@ func notifications(a action.Action) error {
 
 func list(a action.Action) error {
 	ac := a.Context()
-	known, err := ac.KnownUpstreamsStore.Load()
+	known, err := ac.UpstreamStore.LoadKnown()
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -141,31 +131,31 @@ func list(a action.Action) error {
 	}
 
 	// error not important here, only need to highlight thee current in the list
-	currentUpstream, _ := ac.UpstreamLoader.Current()
+	currentUp, _ := ac.UpstreamStore.LoadCurrent()
 
 	keys := []string{}
 	for key := range known {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	text := "Known Jira instances (selected instance is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
+	text := "Known Jira instances (selected upstream is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
 	for i, key := range keys {
-		instance, err := ac.UpstreamLoader.Load(key)
+		up, err := ac.UpstreamStore.Load(key)
 		if err != nil {
 			text += fmt.Sprintf("|%v|%s|error: %v|\n", i+1, key, err)
 			continue
 		}
 		details := ""
-		for k, v := range instance.GetDisplayDetails() {
+		for k, v := range up.DisplayDetails() {
 			details += fmt.Sprintf("%s:%s, ", k, v)
 		}
 		if len(details) > len(", ") {
 			details = details[:len(details)-2]
 		} else {
-			details = instance.GetType()
+			details = up.Config().Type
 		}
 		format := "|%v|%s|%s|\n"
-		if currentUpstream != nil && key == currentUpstream.GetURL() {
+		if currentUp != nil && key == currentUp.Config().Key {
 			format = "| **%v** | **%s** |%s|\n"
 		}
 		text += fmt.Sprintf(format, i+1, key, details)
@@ -348,10 +338,10 @@ func list(a action.Action) error {
 
 func selectUpstream(a action.Action) error {
 	ac := a.Context()
-	instanceKey := a.FormValue("n")
-	num, err := strconv.ParseUint(instanceKey, 10, 8)
+	upkey := a.FormValue("n")
+	num, err := strconv.ParseUint(upkey, 10, 8)
 	if err == nil {
-		known, loadErr := ac.KnownUpstreamsStore.Load()
+		known, loadErr := ac.UpstreamStore.LoadKnown()
 		if loadErr != nil {
 			return a.RespondError(0, err)
 		}
@@ -365,14 +355,14 @@ func selectUpstream(a action.Action) error {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
-		instanceKey = keys[num-1]
+		upkey = keys[num-1]
 	}
 
-	instance, err := ac.UpstreamLoader.Load(instanceKey)
+	up, err := ac.UpstreamStore.Load(upkey)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
-	err = ac.CurrentUpstreamStore.Store(instance)
+	err = ac.UpstreamStore.StoreCurrent(up)
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -384,20 +374,20 @@ func deleteUpstream(a action.Action) error {
 	ac := a.Context()
 	instanceKey := a.FormValue("n")
 
-	known, err := ac.KnownUpstreamsStore.Load()
+	known, err := ac.UpstreamStore.LoadKnown()
 	if err != nil {
 		return a.RespondError(0, err)
 	}
 	if len(known) == 0 {
 		return a.RespondError(0, nil,
-			"There are no instances to delete.\n")
+			"There are no upstreams to delete.\n")
 	}
 
 	num, err := strconv.ParseUint(instanceKey, 10, 8)
 	if err == nil {
 		if num < 1 || int(num) > len(known) {
 			return a.RespondError(0, nil,
-				"Wrong instance number %v, must be 1-%v\n", num, len(known)+1)
+				"Wrong upstream number %v, must be 1-%v\n", num, len(known)+1)
 		}
 
 		keys := []string{}

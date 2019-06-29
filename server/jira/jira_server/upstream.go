@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package jiraserver
+package jira_server
 
 import (
 	"crypto/rsa"
@@ -22,7 +22,7 @@ const Type = "server"
 
 const RouteOAuth1Complete = "/oauth1/complete.html"
 
-type jiraServerUpstream struct {
+type JiraServerUpstream struct {
 	upstream.Upstream
 	mattermostKey string
 }
@@ -43,7 +43,7 @@ func NewUpstream(store store.Store, jiraURL, mattermostKey string, rsaPrivateKey
 		Type: Type,
 	}
 
-	up := &jiraServerUpstream{
+	up := &JiraServerUpstream{
 		Upstream:      upstream.NewUpstream(conf, store, jira.UnmarshalUser),
 		mattermostKey: mattermostKey,
 	}
@@ -52,7 +52,7 @@ func NewUpstream(store store.Store, jiraURL, mattermostKey string, rsaPrivateKey
 }
 
 func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, error) {
-	up := jiraServerUpstream{}
+	up := JiraServerUpstream{}
 	*(up.Config()) = config
 	err := json.Unmarshal(data, &up)
 	if err != nil {
@@ -61,17 +61,17 @@ func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, 
 	return &up, nil
 }
 
-// func (up jiraServerUpstream) GetMattermostKey() string {
+// func (up JiraServerUpstream) GetMattermostKey() string {
 // 	return up.mattermostKey
 // }
 
-func (up jiraServerUpstream) GetDisplayDetails() map[string]string {
+func (up JiraServerUpstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
 		"MattermostKey": up.mattermostKey,
 	}
 }
 
-func (up jiraServerUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up JiraServerUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -104,7 +104,7 @@ func (up jiraServerUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	return authURL.String(), nil
 }
 
-func (up jiraServerUpstream) GetClient(pluginURL string,
+func (up JiraServerUpstream) GetClient(pluginURL string,
 	u upstream.User) (returnClient *gojira.Client, returnErr error) {
 	defer func() {
 		if returnErr != nil {
@@ -136,7 +136,7 @@ func (up jiraServerUpstream) GetClient(pluginURL string,
 	return jiraClient, nil
 }
 
-func (up jiraServerUpstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
+func (up JiraServerUpstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
 		ConsumerKey:    up.mattermostKey,
 		ConsumerSecret: "dontcare",
@@ -150,7 +150,7 @@ func (up jiraServerUpstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, 
 	}, nil
 }
 
-func (up jiraServerUpstream) PublicKeyString() ([]byte, error) {
+func (up JiraServerUpstream) PublicKeyString() ([]byte, error) {
 	b, err := x509.MarshalPKIXPublicKey(&up.Config().RSAPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")

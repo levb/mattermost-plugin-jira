@@ -6,11 +6,13 @@ package http
 import (
 	"net/http"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/filters"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiraserver"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_server"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	// "github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
 )
 
 const (
@@ -28,7 +30,7 @@ const (
 	routeUserDisconnect = "/user/disconnect"
 
 	// Jira incoming webhooks
-	routeWebhookJira           = app.RouteIncomingWebhook
+	routeWebhookJira           = jira.RouteIncomingWebhook
 	routeWebhookJiraIssueEvent = "/issue_event"
 	routeWebhookJiraSubscribe  = "/api/v2/webhook"
 
@@ -47,113 +49,113 @@ const (
 )
 
 var Router = &action.Router{
-	DefaultHandler: func(a action.Action) error {
+	Default: func(a action.Action) error {
 		return a.RespondError(http.StatusNotFound, nil, "not found")
 	},
-	LogHandler: action.HTTPLogHandler,
+	After: action.Script{http_action.LogAction},
 	Routes: map[string]*action.Route{
 		// APIs
 		routeAPIGetCreateIssueMetadata: action.NewRoute(
-			filters.RequireHTTPGet,
-			filters.RequireMattermostUserId,
-			filters.RequireUpstream,
-			filters.RequireBackendUser,
-			filters.RequireJiraClient,
+			lib.RequireHTTPGet,
+			lib.RequireMattermostUserId,
+			lib.RequireUpstream,
+			lib.RequireUpstreamUser,
+			lib.RequireUpstreamClient,
 			getCreateIssueMetadata,
 		),
 		routeAPICreateIssue: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireMattermostUserId,
-			filters.RequireUpstream,
-			filters.RequireBackendUser,
-			filters.RequireJiraClient,
+			lib.RequireHTTPPost,
+			lib.RequireMattermostUserId,
+			lib.RequireUpstream,
+			lib.RequireUpstreamUser,
+			lib.RequireUpstreamClient,
 			createIssue,
 		),
 		routeAPIAttachCommentToIssue: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireMattermostUserId,
-			filters.RequireUpstream,
-			filters.RequireBackendUser,
-			filters.RequireJiraClient,
+			lib.RequireHTTPPost,
+			lib.RequireMattermostUserId,
+			lib.RequireUpstream,
+			lib.RequireUpstreamUser,
+			lib.RequireUpstreamClient,
 			attachCommentToIssue,
 		),
 		routeAPIGetSearchIssues: action.NewRoute(
-			filters.RequireHTTPGet,
-			filters.RequireMattermostUserId,
-			filters.RequireUpstream,
-			filters.RequireBackendUser,
-			filters.RequireJiraClient,
+			lib.RequireHTTPGet,
+			lib.RequireMattermostUserId,
+			lib.RequireUpstream,
+			lib.RequireUpstreamUser,
+			lib.RequireUpstreamClient,
 			getSearchIssues,
 		),
 		routeAPIUser: action.NewRoute(
-			filters.RequireHTTPGet,
-			filters.RequireMattermostUserId,
+			lib.RequireHTTPGet,
+			lib.RequireMattermostUserId,
 			getUserInfo,
 		),
 
 		// httpChannelSubscriptions already ends in a '/', so adding "*" will
 		// pass all sub-paths up to the handler
 		routeAPIChannelSubscriptions + "*": action.NewRoute(
-			filters.RequireMattermostUserId,
+			lib.RequireMattermostUserId,
 			handleChannelSubscriptions,
 		),
 
 		// Incoming webhooks
 		routeWebhookJiraSubscribe: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireUpstream,
+			lib.RequireHTTPPost,
+			lib.RequireUpstream,
 			processSubscribeWebhook,
 		),
 		routeWebhookJira: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireUpstream,
+			lib.RequireHTTPPost,
+			lib.RequireUpstream,
 			processLegacyWebhook,
 		),
 		routeWebhookJiraIssueEvent: action.NewRoute(
-			filters.RequireHTTPPost,
-			filters.RequireUpstream,
+			lib.RequireHTTPPost,
+			lib.RequireUpstream,
 			processLegacyWebhook,
 		),
 
 		// Atlassian Connect application
 		routeJiraCloudInstalled: action.NewRoute(
-			filters.RequireHTTPPost,
+			lib.RequireHTTPPost,
 			processJiraCloudInstalled,
 		),
 		routeJiraCloudInstallJSON: action.NewRoute(
-			filters.RequireHTTPGet,
+			lib.RequireHTTPGet,
 			getJiraCloudInstallJSON,
 		),
 
 		// User connect and disconnect URLs
 		routeUserConnect: action.NewRoute(
-			filters.RequireUpstream,
-			filters.RequireMattermostUserId,
+			lib.RequireUpstream,
+			lib.RequireMattermostUserId,
 			connectUser,
 		),
 		routeUserDisconnect: action.NewRoute(
-			filters.RequireUpstream,
-			filters.RequireMattermostUserId,
-			filters.RequireMattermostUser,
+			lib.RequireUpstream,
+			lib.RequireMattermostUserId,
+			lib.RequireMattermostUser,
 			disconnectUser,
 		),
 
 		// Atlassian Connect user mapping
 		routeJiraCloudUser: action.NewRoute(
 			// TODO this is wrong, all 3 are gets, 2 should be posts
-			filters.RequireHTTPGet,
-			filters.RequireUpstream,
-			filters.RequireJiraCloudJWT,
-			filters.RequireMattermostUserId,
-			filters.RequireMattermostUser,
+			lib.RequireHTTPGet,
+			lib.RequireUpstream,
+			jira_cloud.RequireJWT,
+			lib.RequireMattermostUserId,
+			lib.RequireMattermostUser,
 			connectJiraCloudUser),
 
 		// Oauth1 (Jira Server) user mapping
 		routeJiraServerOAuth1Complete: action.NewRoute(
-			filters.RequireHTTPGet,
-			filters.RequireMattermostUserId,
-			filters.RequireMattermostUser,
-			filters.RequireUpstream,
+			lib.RequireHTTPGet,
+			lib.RequireMattermostUserId,
+			lib.RequireMattermostUser,
+			lib.RequireUpstream,
 			completeJiraServerOAuth1),
 	},
 }

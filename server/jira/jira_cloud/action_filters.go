@@ -10,12 +10,12 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/lib"
 )
 
-func RequireJiraCloudUpstream(a action.Action) error {
+func RequireUpstream(a action.Action) error {
 	err := lib.RequireUpstream(a)
 	if err != nil {
 		return err
 	}
-	cloudUp, ok := a.Context().Upstream.(*jiraCloudUpstream)
+	cloudUp, ok := a.Context().Upstream.(*JiraCloudUpstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Cloud upstream required, got %T", a.Context().Upstream))
@@ -24,16 +24,16 @@ func RequireJiraCloudUpstream(a action.Action) error {
 	return nil
 }
 
-func RequireJiraCloudJWT(a action.Action) error {
+func RequireJWT(a action.Action) error {
 	ac := a.Context()
 	if ac.UpstreamJWT != nil {
 		return nil
 	}
-	err := RequireJiraCloudUpstream(a)
+	err := RequireUpstream(a)
 	if err != nil {
 		return err
 	}
-	cloudUp, _ := ac.Upstream.(*jiraCloudUpstream)
+	cloudUp, _ := ac.Upstream.(*JiraCloudUpstream)
 
 	tokenString := a.FormValue("jwt")
 	if tokenString == "" {
@@ -57,24 +57,5 @@ func RequireJiraCloudJWT(a action.Action) error {
 	ac.UpstreamJWT = token
 	ac.UpstreamRawJWT = tokenString
 	a.Debugf("action: verified Jira JWT")
-	return nil
-}
-
-func RequireJiraClient(a action.Action) error {
-	ac := a.Context()
-	if ac.JiraClient != nil {
-		return nil
-	}
-	err := action.Script{lib.RequireUpstream, lib.RequireBackendUser}.Run(a)
-	if err != nil {
-		return err
-	}
-
-	jiraClient, err := ac.Upstream.GetClient(ac.PluginId, ac.User)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-	ac.JiraClient = jiraClient
-	a.Debugf("action: loaded Jira client for %q", ac.User.UpstreamDisplayName())
 	return nil
 }

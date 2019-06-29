@@ -24,9 +24,9 @@ func (r *Route) With(metadata interface{}) *Route {
 }
 
 type Router struct {
-	Routes         map[string]*Route
-	Before Script
-	After Script
+	Routes  map[string]*Route
+	Before  Script
+	After   Script
 	Default Func
 }
 

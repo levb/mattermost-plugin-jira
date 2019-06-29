@@ -8,13 +8,14 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
 )
 
 func connectUser(a action.Action) error {
 	ac := a.Context()
 
-	redirectURL, status, err := app.GetUserConnectURL(
-		ac.UserStore, ac.OneTimeStore, ac.Upstream, ac.PluginURL, ac.MattermostUserId)
+	redirectURL, status, err := lib.GetUserConnectURL(ac.PluginURL,
+		ac.OneTimeStore, ac.Upstream, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err)
 	}
@@ -23,7 +24,7 @@ func connectUser(a action.Action) error {
 
 func disconnectUser(a action.Action) error {
 	ac := a.Context()
-	err := app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
+	err := lib.DeleteUserNotify(ac.API, ac.Upstream, ac.User)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -46,8 +47,7 @@ func disconnectUser(a action.Action) error {
 
 func getUserInfo(a action.Action) error {
 	ac := a.Context()
-	return a.RespondJSON(app.GetUserInfo(ac.UpstreamLoader,
-		ac.UserStore,
-		ac.MattermostUserId,
-	))
+	resp := jira.GetUserInfo(ac.UpstreamStore, ac.MattermostUserId)
+
+	return a.RespondJSON(resp)
 }

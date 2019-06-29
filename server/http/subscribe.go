@@ -8,26 +8,26 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 )
 
 func processSubscribeWebhook(a action.Action) error {
 	ac := a.Context()
-	httpAction, ok := a.(*action.HTTPAction)
-	if !ok {
-		return a.RespondError(http.StatusInternalServerError, nil, "misconfiguration, wrong Action type")
+	r, err := http_action.Request(a)
+	if err != nil {
+		return err
 	}
 
 	if subtle.ConstantTimeCompare(
-		[]byte(httpAction.Request.URL.Query().Get("secret")),
+		[]byte(r.URL.Query().Get("secret")),
 		[]byte(ac.WebhookSecret)) != 1 {
 		return a.RespondError(http.StatusForbidden, nil,
 			"request URL: secret did not match")
 	}
 
-	status, err := app.ProcessSubscribeWebhook(ac.API, ac.UserStore, httpAction.Request.Body, ac.BotUserId)
+	status, err := jira.ProcessSubscribeWebhook(ac.API, ac.Upstream, r.Body, ac.BotUserId)
 	if err != nil {
 		return a.RespondError(status, err)
 	}
@@ -35,28 +35,28 @@ func processSubscribeWebhook(a action.Action) error {
 }
 
 func handleChannelSubscriptions(a action.Action) error {
-	request, err := action.HTTPRequest(a)
+	ac := a.Context()
+	r, err := http_action.Request(a)
 	if err != nil {
 		return err
 	}
-	ac := a.Context()
 
-	switch request.Method {
+	switch r.Method {
 	case http.MethodPost:
-		return createChannelSubscription(a, ac, request)
+		return createChannelSubscription(a, ac, r)
 	case http.MethodDelete:
-		return deleteChannelSubscription(a, ac, request)
+		return deleteChannelSubscription(a, ac, r)
 	case http.MethodGet:
-		return getChannelSubscriptions(a, ac, request)
+		return getChannelSubscriptions(a, ac, r)
 	case http.MethodPut:
-		return editChannelSubscription(a, ac, request)
+		return editChannelSubscription(a, ac, r)
 	default:
-		return a.RespondError(http.StatusMethodNotAllowed, nil, "Request: %q is not allowed.", request.Method)
+		return a.RespondError(http.StatusMethodNotAllowed, nil, "Request: %q is not allowed.", r.Method)
 	}
 }
 
 func createChannelSubscription(a action.Action, ac *action.Context, request *http.Request) error {
-	status, err := app.CreateChannelSubscription(ac.API, ac.MattermostUserId, request.Body)
+	status, err := jira.CreateChannelSubscription(ac.API, ac.MattermostUserId, request.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to create a channel subscription")
@@ -65,7 +65,7 @@ func createChannelSubscription(a action.Action, ac *action.Context, request *htt
 }
 
 func editChannelSubscription(a action.Action, ac *action.Context, request *http.Request) error {
-	status, err := app.EditChannelSubscription(ac.API, ac.MattermostUserId, request.Body)
+	status, err := jira.EditChannelSubscription(ac.API, ac.MattermostUserId, request.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to create a channel subscription")
@@ -82,7 +82,7 @@ func deleteChannelSubscription(a action.Action, ac *action.Context, request *htt
 			"bad subscription id")
 	}
 
-	status, err := app.DeleteChannelSubscription(ac.API, ac.MattermostUserId, subscriptionId)
+	status, err := jira.DeleteChannelSubscription(ac.API, ac.MattermostUserId, subscriptionId)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to create a channel subscription")
@@ -98,7 +98,7 @@ func getChannelSubscriptions(a action.Action, ac *action.Context, request *http.
 			"bad channel id")
 	}
 
-	subscriptions, status, err := app.GetChannelSubscriptions(ac.API, ac.MattermostUserId, channelId)
+	subscriptions, status, err := jira.GetChannelSubscriptions(ac.API, ac.MattermostUserId, channelId)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to create a channel subscription")

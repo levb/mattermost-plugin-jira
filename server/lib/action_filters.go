@@ -77,10 +77,14 @@ func RequireMattermostSysAdmin(a action.Action) error {
 		return a.RespondError(http.StatusUnauthorized, nil,
 			"reserverd for system administrators")
 	}
+	// if !ac.API.HasPermissionTo(ac.MattermostUserId, model.PERMISSION_MANAGE_SYSTEM) {
+	// 	return a.RespondError(http.StatusForbidden, nil, "forbidden")
+	// }
+
 	return nil
 }
 
-func RequireBackendUser(a action.Action) error {
+func RequireUpstreamUser(a action.Action) error {
 	ac := a.Context()
 	if ac.User != nil {
 		return nil
@@ -113,5 +117,24 @@ func RequireUpstream(a action.Action) error {
 	// Important: overwrite the default UserStore with that where
 	// the keys are prefixed with the instance URL
 	a.Debugf("action: loaded Jira instance %q", up.Config().Key)
+	return nil
+}
+
+func RequireUpstreamClient(a action.Action) error {
+	ac := a.Context()
+	if ac.JiraClient != nil {
+		return nil
+	}
+	err := action.Script{RequireUpstream, RequireUpstreamUser}.Run(a)
+	if err != nil {
+		return err
+	}
+
+	client, err := ac.Upstream.GetClient(ac.PluginId, ac.User)
+	if err != nil {
+		return a.RespondError(http.StatusInternalServerError, err)
+	}
+	ac.JiraClient = client
+	a.Debugf("action: loaded Jira client for %q", ac.User.UpstreamDisplayName())
 	return nil
 }

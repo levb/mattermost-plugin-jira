@@ -27,7 +27,11 @@ type Config struct {
 
 type Upstream interface {
 	Config() *Config
-	UserStore
+
+	StoreUser(User) error
+	DeleteUser(User) error
+	LoadUser(mattermostUserId string) (User, error)
+	LoadMattermostUserId(upstreamUserId string) (string, error)
 
 	DisplayDetails() map[string]string
 	GetClient(string, User) (*jira.Client, error)

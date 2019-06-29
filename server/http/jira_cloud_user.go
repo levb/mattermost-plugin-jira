@@ -8,16 +8,14 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/filters"
-
-	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiracloud"
-
-	"github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 )
 
@@ -28,17 +26,15 @@ const (
 
 func connectJiraCloudUser(a action.Action) error {
 	ac := a.Context()
-	request, err := action.HTTPRequest(a)
+	// up := ac.Upstream.(*jira_cloud.JiraCloudUpstream)
+	request, err := http_action.Request(a)
 	if err != nil {
 		return err
 	}
-	cloudUpstream, ok := ac.Upstream.(*jira_cloud.Upstream)
-	if !ok {
-		return a.RespondError(http.StatusInternalServerError, nil, "misconfigured instance type")
-	}
 
 	mmtoken := a.FormValue(argMMToken)
-	user, secret, status, err := parseTokens(cloudUpstream, ac.BackendJWT, mmtoken, ac.MattermostUserId)
+
+	user, secret, status, err := parseTokens(ac.Upstream, ac.UpstreamJWT, mmtoken, ac.MattermostUserId)
 	if err != nil {
 		return a.RespondError(status, err, "failed to parse tokens")
 	}
@@ -53,15 +49,15 @@ func connectJiraCloudUser(a action.Action) error {
 		if len(storedSecret) == 0 || string(storedSecret) != secret {
 			return a.RespondError(http.StatusUnauthorized, nil, "this link has already been used")
 		}
-		err = app.StoreUserNotify(ac.API, ac.UserStore, ac.Upstream, ac.MattermostUserId, user)
+		err = lib.StoreUserNotify(ac.API, ac.Upstream, user)
 		a.Debugf("Stored and notified: %s %+v", ac.MattermostUserId, ac.User)
 
 	case routeJiraCloudUserDisconnected:
-		err = filters.RequireBackendUser(a)
+		err = lib.RequireUpstreamUser(a)
 		if err != nil {
 			return err
 		}
-		err = app.DeleteUserNotify(ac.API, ac.UserStore, ac.MattermostUserId)
+		err = lib.DeleteUserNotify(ac.API, ac.Upstream, ac.User)
 		a.Debugf("Deleted and notified: %s %+v", ac.MattermostUserId, ac.User)
 
 	case routeJiraCloudUserConfirm:
@@ -85,16 +81,15 @@ func connectJiraCloudUser(a action.Action) error {
 		ArgJiraJWT:            argJiraJWT,
 		ArgMMToken:            argMMToken,
 		MMToken:               mmtoken,
-		JiraDisplayName:       user.DisplayName + " (" + user.Name + ")",
+		JiraDisplayName:       user.UpstreamDisplayName(),
 		MattermostDisplayName: ac.MattermostUser.GetDisplayName(model.SHOW_NICKNAME_FULLNAME),
 	})
 }
 
-func parseTokens(cloudUpstream *jira_cloud.Upstream,
-	backendJWT *jwt.Token, mmtoken, mattermostUserId string) (
-	user *store.User, secret string, status int, err error) {
+func parseTokens(up upstream.Upstream, upstreamJWT *jwt.Token,
+	mmtoken, mattermostUserId string) (upstream.User, string, int, error) {
 
-	claims, ok := backendJWT.Claims.(jwt.MapClaims)
+	claims, ok := upstreamJWT.Claims.(jwt.MapClaims)
 	if !ok {
 		return nil, "", http.StatusBadRequest, errors.New("invalid JWT claims")
 	}
@@ -109,21 +104,25 @@ func parseTokens(cloudUpstream *jira_cloud.Upstream,
 	userKey, _ := userProps["userKey"].(string)
 	username, _ := userProps["username"].(string)
 	displayName, _ := userProps["displayName"].(string)
-	user = &store.User{
-		User: jira.User{
-			Key:         userKey,
-			Name:        username,
-			DisplayName: displayName,
-		},
+	juser := jira.JiraUser{
+		Key:         userKey,
+		Name:        username,
+		DisplayName: displayName,
 	}
 
-	requestedUserId, secret, err := cloudUpstream.ParseAuthToken(mmtoken)
+	cloudUp := up.(*jira_cloud.JiraCloudUpstream)
+	requestedUserId, secret, err := cloudUp.ParseAuthToken(mmtoken)
 	if err != nil {
 		return nil, "", http.StatusUnauthorized, err
 	}
 
 	if mattermostUserId != requestedUserId {
 		return nil, "", http.StatusUnauthorized, errors.New("not authorized, user id does not match link")
+	}
+
+	user := jira.User{
+		User:     upstream.NewUser(mattermostUserId, userKey),
+		JiraUser: juser,
 	}
 
 	return user, secret, http.StatusOK, nil

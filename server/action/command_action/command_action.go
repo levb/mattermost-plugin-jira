@@ -109,7 +109,7 @@ func Make(router action.Router, inner action.Action, commandArgs *model.CommandA
 	return key, a, nil
 }
 
-func RequireHTTPAction(a action.Action) error {
+func RequireCommandAction(a action.Action) error {
 	_, ok := a.(*Action)
 	if !ok {
 		return errors.Errorf("wrong action type, expected HTTPAction, got %T", a)
@@ -186,4 +186,18 @@ func (a *Action) respond(text string) {
 		IconURL:      a.Context().BotIconURL,
 		Type:         model.POST_DEFAULT,
 	}
+}
+
+func LogAction(a action.Action) error {
+	commandAction, ok := a.(*Action)
+	ac := a.Context()
+	switch {
+	case !ok:
+		a.Errorf("command: %q error: misconfiguration, wrong Action type", commandAction.commandArgs.Command)
+	case ac.LogErr != nil:
+		a.Infof("command: %q error:%v", commandAction.commandArgs.Command, ac.LogErr)
+	default:
+		a.Debugf("command: %q", commandAction.commandArgs.Command)
+	}
+	return nil
 }

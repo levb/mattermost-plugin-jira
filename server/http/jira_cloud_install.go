@@ -5,13 +5,13 @@ package http
 
 import (
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira/jiracloud"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
 )
 
 func getJiraCloudInstallJSON(a action.Action) error {
 	ac := a.Context()
-	return action.HTTPRespondTemplate(a,
+	return http_action.RespondTemplate(a,
 		"application/json",
 		map[string]string{
 			"BaseURL":            ac.PluginURL,
@@ -27,13 +27,13 @@ func getJiraCloudInstallJSON(a action.Action) error {
 
 func processJiraCloudInstalled(a action.Action) error {
 	ac := a.Context()
-	request, err := action.HTTPRequest(a)
+	r, err := http_action.Request(a)
 	if err != nil {
 		return err
 	}
 
-	status, err := app.ProcessJiraCloudInstalled(ac.API,
-		ac.UpstreamStore, ac.CurrentUpstreamStore, ac.AuthTokenSecret, request.Body)
+	status, err := jira_cloud.ProcessInstalled(ac.API, ac.UpstreamStore,
+		ac.AuthTokenSecret, r.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to process atlassian-connect installed event")

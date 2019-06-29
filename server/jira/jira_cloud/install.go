@@ -19,10 +19,8 @@ import (
 
 func ProcessInstalled(
 	api plugin.API,
-	s store.Store,
 	upstore upstream.Store,
 	authTokenSecret []byte,
-	mattermostKey string,
 	body io.Reader) (int, error) {
 
 	data, err := ioutil.ReadAll(body)
@@ -47,7 +45,7 @@ func ProcessInstalled(
 		return http.StatusInternalServerError,
 			errors.WithMessagef(err, "failed to load Jira upstream %q", asc.BaseURL)
 	}
-	cloudUp, ok := up.(*jiraCloudUpstream)
+	cloudUp, ok := up.(*JiraCloudUpstream)
 	if !ok {
 		return http.StatusInternalServerError,
 			errors.Errorf("expected a Jira Cloud upstream, got %T", up)
@@ -57,7 +55,7 @@ func ProcessInstalled(
 			errors.Errorf("Jira upstream %q is already installed", asc.BaseURL)
 	}
 
-	up = NewUpstream(s, true, string(data), &asc, authTokenSecret)
+	up = NewUpstream(nil, true, string(data), &asc, authTokenSecret)
 
 	// UpstreamStore.Store also updates the list of known Jira upstreams
 	err = upstore.Store(up)

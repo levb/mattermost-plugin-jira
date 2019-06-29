@@ -25,7 +25,7 @@ import (
 
 const Type = "cloud"
 
-type jiraCloudUpstream struct {
+type JiraCloudUpstream struct {
 	upstream.Upstream
 
 	// Initially a new instance is created with an expiration time. The
@@ -69,7 +69,7 @@ func NewUpstream(store store.Store, installed bool, rawASC string,
 		Type: Type,
 	}
 
-	up := &jiraCloudUpstream{
+	up := &JiraCloudUpstream{
 		Upstream:                    upstream.NewUpstream(conf, store, jira.UnmarshalUser),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
@@ -80,7 +80,7 @@ func NewUpstream(store store.Store, installed bool, rawASC string,
 }
 
 func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, error) {
-	up := jiraCloudUpstream{}
+	up := JiraCloudUpstream{}
 	*(up.Config()) = config
 	err := json.Unmarshal(data, &up)
 	if err != nil {
@@ -91,7 +91,7 @@ func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, 
 	return &up, nil
 }
 
-func (up jiraCloudUpstream) GetDisplayDetails() map[string]string {
+func (up JiraCloudUpstream) GetDisplayDetails() map[string]string {
 	if !up.Installed {
 		return map[string]string{
 			"Setup": "In progress",
@@ -106,7 +106,7 @@ func (up jiraCloudUpstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up jiraCloudUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up JiraCloudUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -135,7 +135,7 @@ func (up jiraCloudUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	), nil
 }
 
-func (up jiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
+func (up JiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
 
 	oauth2Conf := oauth2_jira.Config{
 		BaseURL: up.Config().URL,
@@ -154,7 +154,7 @@ func (up jiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*go
 }
 
 // Creates a "bot" client with a JWT
-func (up jiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
+func (up JiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          up.atlassianSecurityContext.Key,
 		ClientKey:    up.atlassianSecurityContext.ClientKey,
@@ -165,7 +165,7 @@ func (up jiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
 	return gojira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (up jiraCloudUpstream) JWTFromHTTPRequest(r *http.Request) (
+func (up JiraCloudUpstream) JWTFromHTTPRequest(r *http.Request) (
 	token *jwt.Token, rawToken string, status int, err error) {
 
 	tokenString := r.FormValue("jwt")

@@ -25,7 +25,7 @@ type AuthToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (up jiraCloudUpstream) NewAuthToken(mattermostUserID,
+func (up JiraCloudUpstream) NewAuthToken(mattermostUserID,
 	secret string) (returnToken string, returnErr error) {
 
 	t := AuthToken{
@@ -47,7 +47,7 @@ func (up jiraCloudUpstream) NewAuthToken(mattermostUserID,
 	return encode(encrypted)
 }
 
-func (up jiraCloudUpstream) ParseAuthToken(encoded string) (string, string, error) {
+func (up JiraCloudUpstream) ParseAuthToken(encoded string) (string, string, error) {
 	t := AuthToken{}
 	err := func() error {
 		decoded, err := decode(encoded)

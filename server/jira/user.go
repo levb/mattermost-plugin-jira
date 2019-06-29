@@ -15,11 +15,11 @@ import (
 )
 
 // wrap jira.User into a different type name to avoid conflicts
-type jiraUser jira.User
+type JiraUser jira.User
 
 type User struct {
 	upstream.User
-	jiraUser
+	JiraUser
 }
 
 func UnmarshalUser(data []byte) (upstream.User, error) {
