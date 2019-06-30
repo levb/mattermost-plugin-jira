@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
@@ -54,7 +54,7 @@ func (up JiraServerUpstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up JiraServerUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up JiraServerUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -74,7 +74,7 @@ func (up JiraServerUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
 	}
 
 	err = otsStore.StoreOauth1aTemporaryCredentials(mattermostUserId,
-		&store.OAuth1aTemporaryCredentials{Token: token, Secret: secret})
+		&kvstore.OAuth1aTemporaryCredentials{Token: token, Secret: secret})
 	if err != nil {
 		return "", err
 	}

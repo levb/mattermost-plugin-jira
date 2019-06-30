@@ -27,7 +27,7 @@ func (u user) MattermostId() string          { return u.MattermostUserId }
 func (u user) UpstreamId() string            { return u.UpstreamUserId }
 func (u user) MattermostDisplayName() string { return "" }
 func (u user) UpstreamDisplayName() string   { return "" }
-func (u user) Settings() *UserSettings       { return &u.UserSettings }
+func (u *user) Settings() *UserSettings      { return &u.UserSettings }
 
 func NewUser(mattermostUserId, upstreamUserId string) User {
 	return &user{

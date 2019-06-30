@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/lib"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 )
@@ -37,7 +37,7 @@ func ProcessInstalled(
 	// Only allow this operation once, a Jira upstream must already exist
 	// for asc.BaseURL but not Installed.
 	up, err := upstore.Load(asc.BaseURL)
-	if err == store.ErrNotFound {
+	if err == kvstore.ErrNotFound {
 		return http.StatusNotFound,
 			errors.Errorf("Jira upstream %q must first be added to Mattermost", asc.BaseURL)
 	}

@@ -7,13 +7,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 )
 
 const StoreKeyTokenSecret = "token_secret"
 const StoreKeyRSAPrivateKey = "rsa_key"
 
-func EnsureRSAPrivateKey(s store.Store) (*rsa.PrivateKey, error) {
+func EnsureRSAPrivateKey(kv kvstore.KVStore) (*rsa.PrivateKey, error) {
 	// Ensure we generate the secrets on first start
 	rsaPrivateKey, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
@@ -23,7 +23,7 @@ func EnsureRSAPrivateKey(s store.Store) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to marshal private key")
 	}
-	newRSAPrivateKeyBytes, err := s.Ensure(StoreKeyRSAPrivateKey, rsaPrivateKeyBytes)
+	newRSAPrivateKeyBytes, err := kvstore.Ensure(kv, StoreKeyRSAPrivateKey, rsaPrivateKeyBytes)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to generate private key")
 	}
@@ -35,12 +35,12 @@ func EnsureRSAPrivateKey(s store.Store) (*rsa.PrivateKey, error) {
 	return rsaPrivateKey, nil
 }
 
-func EnsureAuthTokenSecret(s store.Store) ([]byte, error) {
+func EnsureAuthTokenSecret(kv kvstore.KVStore) ([]byte, error) {
 	// Ensure we generate the secrets on first start
 	secret := make([]byte, 32)
 	_, err := rand.Reader.Read(secret)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to generate token secret")
 	}
-	return s.Ensure(StoreKeyTokenSecret, secret)
+	return kvstore.Ensure(kv, StoreKeyTokenSecret, secret)
 }

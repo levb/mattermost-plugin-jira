@@ -11,12 +11,12 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 	"github.com/mattermost/mattermost-plugin-jira/server/lib"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-func (serverUp JiraServerUpstream) CompleteOAuth1(api plugin.API, ots store.OneTimeStore,
+func (serverUp JiraServerUpstream) CompleteOAuth1(api plugin.API, ots kvstore.OneTimeStore,
 	r *http.Request, pluginURL, mattermostUserId string) (upstream.User, int, error) {
 
 	requestToken, verifier, err := oauth1.ParseAuthorizationCallback(r)

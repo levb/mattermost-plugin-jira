@@ -19,7 +19,7 @@ import (
 	oauth2_jira "golang.org/x/oauth2/jira"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
@@ -90,7 +90,7 @@ func (up JiraCloudUpstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up JiraCloudUpstream) GetUserConnectURL(otsStore store.OneTimeStore,
+func (up JiraCloudUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)

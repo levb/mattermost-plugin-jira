@@ -11,7 +11,7 @@ import (
 	"github.com/andygrunwald/go-jira"
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 )
 
 var ErrWrongUpstreamType = errors.New("wrong upstream type")
@@ -34,16 +34,16 @@ type Upstream interface {
 
 	DisplayDetails() map[string]string
 	GetClient(string, User) (*jira.Client, error)
-	GetUserConnectURL(ots store.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
+	GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
 }
 
 type upstream struct {
 	config       Config
-	store        store.Store
+	kv           kvstore.KVStore
 	unmarshaller Unmarshaller
 }
 
-func (up upstream) Config() *Config {
+func (up *upstream) Config() *Config {
 	return &up.config
 }
 
@@ -55,7 +55,7 @@ func (up upstream) GetClient(string, User) (*jira.Client, error) {
 	return nil, errors.New("API not available")
 }
 
-func (up upstream) GetUserConnectURL(ots store.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
+func (up upstream) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
 	return "", nil
 }
 

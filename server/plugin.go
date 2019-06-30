@@ -24,7 +24,7 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_server"
 	"github.com/mattermost/mattermost-plugin-jira/server/lib"
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -43,8 +43,8 @@ type Plugin struct {
 var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 
 func (p *Plugin) OnActivate() error {
-	s := store.NewPluginStore(p.API)
-	ots := store.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
+	s := kvstore.NewPluginStore(p.API)
+	ots := kvstore.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
 
 	rsaPrivateKey, err := lib.EnsureRSAPrivateKey(s)
 	if err != nil {
@@ -149,6 +149,7 @@ func (p *Plugin) OnConfigurationChange() error {
 }
 
 func (p *Plugin) ServeHTTP(pc *plugin.Context, w gohttp.ResponseWriter, r *gohttp.Request) {
+	fmt.Println("<><> ", r.URL)
 	a := action.NewAction(http.Router, p.getContext(), pc, "")
 	a = http_action.Make(a, r, w)
 

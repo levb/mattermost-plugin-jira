@@ -70,6 +70,7 @@ func RequireMattermostSysAdmin(a action.Action) error {
 	}
 
 	ac := a.Context()
+
 	if !ac.MattermostUser.IsInRole(model.SYSTEM_ADMIN_ROLE_ID) {
 		return a.RespondError(http.StatusUnauthorized, nil,
 			"reserverd for system administrators")

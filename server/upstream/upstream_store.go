@@ -6,12 +6,11 @@ package upstream
 import (
 	"crypto/rsa"
 	"encoding/json"
+	"fmt"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/pkg/errors"
 )
-
-const disablePrefixForUpstream = false
 
 const (
 	keyCurrentUpstream = "current_jira_instance"
@@ -45,15 +44,15 @@ type Unmarshaller interface {
 
 type upstreamStore struct {
 	config        StoreConfig
-	store         store.Store
-	prefixedStore store.Store
+	kv            kvstore.KVStore
+	prefixedKV    kvstore.KVStore
 	unmarshallers map[string]Unmarshaller
 }
 
-func NewStore(conf StoreConfig, s store.Store, unmarshallers map[string]Unmarshaller) Store {
+func NewStore(conf StoreConfig, kv kvstore.KVStore, unmarshallers map[string]Unmarshaller) Store {
 	return &upstreamStore{
-		store:         s,
-		prefixedStore: store.NewHashedKeyStore(s, prefixUpstream),
+		kv:            kv,
+		prefixedKV:    kvstore.NewHashedKeyStore(kv, prefixUpstream),
 		config:        conf,
 		unmarshallers: unmarshallers,
 	}
@@ -65,7 +64,7 @@ func (s upstreamStore) Make(conf Config) Upstream {
 	}
 	up := &upstream{
 		config:       conf,
-		store:        s.store,
+		kv:           s.kv,
 		unmarshaller: s.unmarshallers[conf.Type],
 	}
 	up.config.StoreConfig = s.config
@@ -73,6 +72,7 @@ func (s upstreamStore) Make(conf Config) Upstream {
 }
 
 func (s upstreamStore) Load(key string) (Upstream, error) {
+	fmt.Println("<><> ", key)
 	up, err := s.load(func() ([]byte, error) {
 		return s.LoadRaw(key)
 	})
@@ -96,6 +96,7 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 		return nil, err
 	}
 
+	fmt.Println("<><> ", string(data))
 	// Unmarshal into any of the types just so that we can get the common data
 	up := upstream{}
 	err = json.Unmarshal(data, &up)
@@ -110,19 +111,21 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 			errors.Errorf("upstream %q has unsupported type: %q", upconf.Key, upconf.Type)
 	}
 
+	fmt.Println("<><> ", upconf.Type)
+
 	newUp, err := unmarshal.UnmarshalUpstream(data, s.config)
 	return newUp, nil
 }
 
 func (s upstreamStore) LoadRaw(key string) ([]byte, error) {
-	return s.store.Load(key)
+	return s.kv.Load(key)
 }
 
 func (s upstreamStore) Store(up Upstream) (returnErr error) {
-	upc := up.Config()
-	err := store.StoreJSON(s.store, upc.Key, up)
+	upconf := up.Config()
+	err := kvstore.StoreJSON(s.kv, upconf.Key, up)
 	if err != nil {
-		return errors.WithMessagef(err, "failed to store upstream %q", upc.Key)
+		return errors.WithMessagef(err, "failed to store upstream %q", upconf.Key)
 	}
 
 	// Update known upstreams
@@ -130,7 +133,7 @@ func (s upstreamStore) Store(up Upstream) (returnErr error) {
 	if err != nil {
 		return err
 	}
-	known[upc.Key] = upc.Type
+	known[upconf.Key] = upconf.Type
 	err = s.StoreKnown(known)
 	if err != nil {
 		return err
@@ -140,7 +143,7 @@ func (s upstreamStore) Store(up Upstream) (returnErr error) {
 
 func (s upstreamStore) Delete(key string) (returnErr error) {
 	// Delete the upstream.
-	err := s.store.Delete(key)
+	err := s.kv.Delete(key)
 	if err != nil {
 		return err
 	}
@@ -158,12 +161,12 @@ func (s upstreamStore) Delete(key string) (returnErr error) {
 
 	// Remove the current upstream if it matches the deleted
 	up := upstream{}
-	err = store.LoadJSON(s.store, keyCurrentUpstream, &up)
+	err = kvstore.LoadJSON(s.kv, keyCurrentUpstream, &up)
 	if err != nil {
 		return errors.WithMessage(err, "failed to load current upstream")
 	}
 	if up.Config().Key == key {
-		err = s.store.Delete(keyCurrentUpstream)
+		err = s.kv.Delete(keyCurrentUpstream)
 		if err != nil {
 			return errors.WithMessage(err, "failed to delete current upstream")
 		}
@@ -173,7 +176,7 @@ func (s upstreamStore) Delete(key string) (returnErr error) {
 }
 
 func (s upstreamStore) StoreKnown(known map[string]string) error {
-	err := store.StoreJSON(s.store, keyKnownUpstreams, known)
+	err := kvstore.StoreJSON(s.kv, keyKnownUpstreams, known)
 	if err != nil {
 		return errors.WithMessagef(err,
 			"failed to store known upstreams %+v", known)
@@ -183,7 +186,7 @@ func (s upstreamStore) StoreKnown(known map[string]string) error {
 
 func (s upstreamStore) LoadKnown() (map[string]string, error) {
 	known := map[string]string{}
-	err := store.LoadJSON(s.store, keyKnownUpstreams, &known)
+	err := kvstore.LoadJSON(s.kv, keyKnownUpstreams, &known)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to load known upstreams")
 	}
@@ -191,7 +194,7 @@ func (s upstreamStore) LoadKnown() (map[string]string, error) {
 }
 
 func (s upstreamStore) StoreCurrent(up Upstream) (returnErr error) {
-	err := store.StoreJSON(s.store, keyCurrentUpstream, up)
+	err := kvstore.StoreJSON(s.kv, keyCurrentUpstream, up)
 	if err != nil {
 		return errors.WithMessagef(err, "failed to store current upstream %q", up.Config().Key)
 	}
@@ -199,13 +202,13 @@ func (s upstreamStore) StoreCurrent(up Upstream) (returnErr error) {
 }
 
 func (s upstreamStore) LoadCurrentRaw() ([]byte, error) {
-	data, err := s.store.Load(keyCurrentUpstream)
+	data, err := s.kv.Load(keyCurrentUpstream)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to load current upstream")
 	}
 	return data, nil
 }
 
-func (s upstreamStore) Config() *StoreConfig {
+func (s *upstreamStore) Config() *StoreConfig {
 	return &s.config
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package store
+package kvstore
 
 import (
 	"crypto/md5"
@@ -9,13 +9,13 @@ import (
 )
 
 type hashedKeyStore struct {
-	store  Store
+	store  KVStore
 	prefix string
 }
 
-var _ Store = (*hashedKeyStore)(nil)
+var _ KVStore = (*hashedKeyStore)(nil)
 
-func NewHashedKeyStore(s Store, prefix string) Store {
+func NewHashedKeyStore(s KVStore, prefix string) KVStore {
 	return &hashedKeyStore{
 		store:  s,
 		prefix: prefix,
@@ -32,10 +32,6 @@ func (s hashedKeyStore) Store(key string, data []byte) error {
 
 func (s hashedKeyStore) Delete(key string) error {
 	return s.store.Delete(hashKey(s.prefix, key))
-}
-
-func (s hashedKeyStore) Ensure(key string, value []byte) ([]byte, error) {
-	return s.store.Ensure(hashKey(s.prefix, key), value)
 }
 
 func hashKey(prefix, hashableKey string) string {

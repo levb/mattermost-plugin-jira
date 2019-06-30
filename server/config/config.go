@@ -7,7 +7,7 @@ import (
 	"crypto/rsa"
 	"text/template"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 )
@@ -33,7 +33,7 @@ type Context struct {
 	// Service dependencies
 	API           plugin.API
 	UpstreamStore upstream.Store
-	OneTimeStore  store.OneTimeStore
+	OneTimeStore  kvstore.OneTimeStore
 
 	// Parsed and cached templates
 	// TODO store text vs html templates

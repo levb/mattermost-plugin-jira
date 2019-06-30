@@ -1,4 +1,4 @@
-// Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2019-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
 package command_action
@@ -117,7 +117,7 @@ func RequireCommandAction(a action.Action) error {
 	return nil
 }
 
-func (a Action) FormValue(name string) string {
+func (a *Action) FormValue(name string) string {
 	if len(a.argsMap) == 0 {
 		return ""
 	}

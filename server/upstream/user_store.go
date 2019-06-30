@@ -9,18 +9,18 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 )
 
 func (up upstream) StoreUser(u User) error {
 	mmkey := up.userkey(u.MattermostId())
 	upkey := up.userkey(u.UpstreamId())
 
-	err := store.StoreJSON(up.store, mmkey, u)
+	err := kvstore.StoreJSON(up.kv, mmkey, u)
 	if err != nil {
 		return errors.WithMessagef(err, "failed to store upstream user for %q", u.MattermostId())
 	}
-	err = store.StoreJSON(up.store, upkey, u.MattermostId())
+	err = kvstore.StoreJSON(up.kv, upkey, u.MattermostId())
 	if err != nil {
 		return errors.WithMessagef(err, "failed to store mattermost Id for upstream user %q", u.UpstreamDisplayName())
 	}
@@ -29,7 +29,7 @@ func (up upstream) StoreUser(u User) error {
 
 func (up upstream) LoadUser(mattermostUserId string) (User, error) {
 	mmkey := up.userkey(mattermostUserId)
-	data, err := up.store.Load(mmkey)
+	data, err := up.kv.Load(mmkey)
 	if err != nil {
 		return nil, errors.WithMessagef(err,
 			"failed to load upstream user for: %q", mattermostUserId)
@@ -50,7 +50,7 @@ func (up upstream) LoadUser(mattermostUserId string) (User, error) {
 func (up upstream) LoadMattermostUserId(upstreamUserId string) (string, error) {
 	upkey := up.userkey(upstreamUserId)
 	mattermostUserId := ""
-	err := store.LoadJSON(up.store, upkey, &mattermostUserId)
+	err := kvstore.LoadJSON(up.kv, upkey, &mattermostUserId)
 	if err != nil {
 		return "", errors.WithMessagef(err,
 			"failed to load Mattermost user ID for upstream user: %q", upstreamUserId)
@@ -61,11 +61,11 @@ func (up upstream) LoadMattermostUserId(upstreamUserId string) (string, error) {
 func (up upstream) DeleteUser(u User) error {
 	mmkey := up.userkey(u.MattermostId())
 	upkey := up.userkey(u.UpstreamId())
-	err := up.store.Delete(mmkey)
+	err := up.kv.Delete(mmkey)
 	if err != nil {
 		return err
 	}
-	err = up.store.Delete(upkey)
+	err = up.kv.Delete(upkey)
 	if err != nil {
 		return err
 	}
@@ -73,10 +73,7 @@ func (up upstream) DeleteUser(u User) error {
 }
 
 func (up upstream) userkey(key string) string {
-	if disablePrefixForUpstream {
-		h := md5.New()
-		fmt.Fprintf(h, "%s/%s", up.Config().Key, key)
-		key = fmt.Sprintf("%x", h.Sum(nil))
-	}
-	return key
+	h := md5.New()
+	fmt.Fprintf(h, "%s/%s", up.Config().Key, key)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }

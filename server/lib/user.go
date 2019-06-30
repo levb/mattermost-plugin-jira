@@ -8,13 +8,13 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
 // GetUserConnectURL is a convenience function that checks that the user doesn't
 // already exist before calling upstream's GetUserConnectURL.
-func GetUserConnectURL(pluginURL string, oneTimeStore store.OneTimeStore,
+func GetUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,
 	up upstream.Upstream, mattermostUserId string) (string, int, error) {
 	// Users shouldn't be able to make multiple connections.
 	_, err := up.LoadUser(mattermostUserId)
@@ -23,7 +23,7 @@ func GetUserConnectURL(pluginURL string, oneTimeStore store.OneTimeStore,
 		return "", http.StatusUnauthorized,
 			errors.New("Already connected to a Jira account. Please use /jira disconnect to disconnect.")
 
-	case store.ErrNotFound:
+	case kvstore.ErrNotFound:
 
 	default:
 		return "", http.StatusInternalServerError, err

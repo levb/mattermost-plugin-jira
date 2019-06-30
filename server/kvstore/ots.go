@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package store
+package kvstore
 
 import (
 	"github.com/pkg/errors"
@@ -19,7 +19,7 @@ type OAuth1aTemporaryCredentials struct {
 }
 
 type OneTimeStore interface {
-	Store
+	KVStore
 	StoreOauth1aTemporaryCredentials(mmUserId string, credentials *OAuth1aTemporaryCredentials) error
 	LoadOauth1aTemporaryCredentials(mmUserId string) (*OAuth1aTemporaryCredentials, error)
 }

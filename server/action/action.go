@@ -1,4 +1,4 @@
-// Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2019-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
 package action
@@ -77,7 +77,7 @@ func NewAction(router *Router, context config.Context, pc *plugin.Context, matte
 	}
 }
 
-func (a action) Context() *Context {
+func (a *action) Context() *Context {
 	return &a.context
 }
 
