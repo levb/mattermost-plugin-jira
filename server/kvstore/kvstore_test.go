@@ -9,10 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryStore(t *testing.T) {
-	testStore(t, "memory", NewMemoryStore())
-}
-
 func TestPluginStore(t *testing.T) {
 	testStore(t, "plugin", NewMockedStore())
 }

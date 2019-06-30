@@ -26,7 +26,7 @@ import (
 const Type = "cloud"
 
 type JiraCloudUpstream struct {
-	upstream.Upstream
+	upstream.BasicUpstream
 
 	// Initially a new instance is created with an expiration time. The
 	// admin is expected to upload it to the Jira instance, and we will
@@ -60,7 +60,7 @@ type AtlassianSecurityContext struct {
 func newUpstream(upStore upstream.Store, installed bool, rawASC string,
 	asc *AtlassianSecurityContext) upstream.Upstream {
 
-	conf := upstream.Config{
+	conf := upstream.UpstreamConfig{
 		StoreConfig: *(upStore.Config()),
 		Key:         asc.BaseURL,
 		URL:         asc.BaseURL,
@@ -68,7 +68,7 @@ func newUpstream(upStore upstream.Store, installed bool, rawASC string,
 	}
 
 	return &JiraCloudUpstream{
-		Upstream:                    upStore.Make(conf),
+		BasicUpstream:               upStore.MakeBasicUpstream(conf),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
@@ -183,6 +183,11 @@ func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreCon
 	if err != nil {
 		return nil, err
 	}
+
+	asc := AtlassianSecurityContext{}
+	err = json.Unmarshal([]byte(up.RawAtlassianSecurityContext), &asc)
+	up.atlassianSecurityContext = &asc
+
 	up.Config().Key = up.atlassianSecurityContext.BaseURL
 	up.Config().URL = up.atlassianSecurityContext.BaseURL
 	return &up, nil

@@ -22,7 +22,7 @@ const Type = "server"
 const RouteOAuth1Complete = "/oauth1/complete.html"
 
 type JiraServerUpstream struct {
-	upstream.Upstream
+	upstream.BasicUpstream
 	mattermostKey string
 }
 
@@ -41,7 +41,7 @@ func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream
 	}
 
 	up := &JiraServerUpstream{
-		Upstream:      upstore.Make(conf),
+		BasicUpstream: upstore.MakeBasicUpstream(conf),
 		mattermostKey: mattermostKey,
 	}
 
