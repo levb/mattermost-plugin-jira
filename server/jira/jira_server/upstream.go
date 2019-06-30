@@ -33,7 +33,7 @@ type jiraServerUser struct {
 }
 
 func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream.Upstream {
-	conf := upstream.Config{
+	conf := upstream.UpstreamConfig{
 		StoreConfig: *(upstore.Config()),
 		Key:         jiraURL,
 		URL:         jiraURL,
@@ -160,7 +160,6 @@ func (_ unmarshaller) UnmarshalUser(data []byte) (upstream.User, error) {
 
 func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreConfig) (upstream.Upstream, error) {
 	up := JiraServerUpstream{}
-	up.Config().StoreConfig = storeConf
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err

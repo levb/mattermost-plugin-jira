@@ -47,4 +47,3 @@ func (s pluginStore) Delete(key string) error {
 	}
 	return nil
 }
-

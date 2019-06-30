@@ -16,7 +16,7 @@ import (
 
 var ErrWrongUpstreamType = errors.New("wrong upstream type")
 
-type Config struct {
+type UpstreamConfig struct {
 	StoreConfig `json:"-"`
 
 	Key  string
@@ -25,7 +25,7 @@ type Config struct {
 }
 
 type Upstream interface {
-	Config() *Config
+	Config() *UpstreamConfig
 
 	StoreUser(User) error
 	DeleteUser(User) error
@@ -37,25 +37,25 @@ type Upstream interface {
 	GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
 }
 
-type upstream struct {
-	config       Config
+type BasicUpstream struct {
+	UpstreamConfig
 	kv           kvstore.KVStore
 	unmarshaller Unmarshaller
 }
 
-func (up *upstream) Config() *Config {
-	return &up.config
+func (up *BasicUpstream) Config() *UpstreamConfig {
+	return &up.UpstreamConfig
 }
 
-func (up upstream) DisplayDetails() map[string]string {
+func (up BasicUpstream) DisplayDetails() map[string]string {
 	return map[string]string{}
 }
 
-func (up upstream) GetClient(string, User) (*jira.Client, error) {
+func (up BasicUpstream) GetClient(string, User) (*jira.Client, error) {
 	return nil, errors.New("API not available")
 }
 
-func (up upstream) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
+func (up BasicUpstream) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
 	return "", nil
 }
 

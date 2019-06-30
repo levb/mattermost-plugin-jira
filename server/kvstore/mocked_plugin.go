@@ -15,7 +15,7 @@ type MockedStore struct {
 	Values map[string][]byte
 }
 
-func NewMockedStore() KVStore {
+func NewMockedStore() MockedStore {
 	s := MockedStore{
 		Values: map[string][]byte{},
 	}
