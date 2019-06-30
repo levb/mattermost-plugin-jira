@@ -55,7 +55,7 @@ func ProcessInstalled(
 			errors.Errorf("Jira upstream %q is already installed", asc.BaseURL)
 	}
 
-	up = NewUpstream(nil, true, string(data), &asc, authTokenSecret)
+	up = newUpstream(upstore, true, string(data), &asc)
 
 	// UpstreamStore.Store also updates the list of known Jira upstreams
 	err = upstore.Store(up)

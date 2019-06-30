@@ -22,7 +22,7 @@ type Action struct {
 
 var _ action.Action = (*Action)(nil)
 
-func Make(router action.Router, inner action.Action, r *http.Request, w http.ResponseWriter) action.Action {
+func Make(inner action.Action, r *http.Request, w http.ResponseWriter) action.Action {
 	a := &Action{
 		Action: inner,
 		r:      r,
@@ -114,9 +114,9 @@ func RespondTemplate(action action.Action, contentType string, values interface{
 	return a.RespondTemplate(a.r.URL.Path, contentType, values)
 }
 
-func Request(action action.Action) (*http.Request, error) {
+func Request(action action.Action) *http.Request {
 	a, _ := action.(*Action)
-	return a.r, nil
+	return a.r
 }
 
 func LogAction(a action.Action) error {

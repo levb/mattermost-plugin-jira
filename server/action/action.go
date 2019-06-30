@@ -19,7 +19,7 @@ import (
 
 // Context has pre-computed values for an action
 type Context struct {
-	config.Context `json:"none"`
+	config.Context `json:"-"`
 
 	PluginContext *plugin.Context
 	Upstream      upstream.Upstream

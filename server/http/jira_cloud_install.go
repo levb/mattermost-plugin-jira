@@ -27,10 +27,7 @@ func getJiraCloudInstallJSON(a action.Action) error {
 
 func processJiraCloudInstalled(a action.Action) error {
 	ac := a.Context()
-	r, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	r := http_action.Request(a)
 
 	status, err := jira_cloud.ProcessInstalled(ac.API, ac.UpstreamStore,
 		ac.AuthTokenSecret, r.Body)

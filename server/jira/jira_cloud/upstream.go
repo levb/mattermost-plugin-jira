@@ -57,38 +57,22 @@ type AtlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func NewUpstream(store store.Store, installed bool, rawASC string,
-	asc *AtlassianSecurityContext, authTokenSecret []byte) upstream.Upstream {
+func newUpstream(upStore upstream.Store, installed bool, rawASC string,
+	asc *AtlassianSecurityContext) upstream.Upstream {
 
 	conf := upstream.Config{
-		StoreConfig: upstream.StoreConfig{
-			AuthTokenSecret: authTokenSecret,
-		},
-		Key:  asc.BaseURL,
-		URL:  asc.BaseURL,
-		Type: Type,
+		StoreConfig: *(upStore.Config()),
+		Key:         asc.BaseURL,
+		URL:         asc.BaseURL,
+		Type:        Type,
 	}
 
-	up := &JiraCloudUpstream{
-		Upstream:                    upstream.NewUpstream(conf, store, jira.UnmarshalUser),
+	return &JiraCloudUpstream{
+		Upstream:                    upStore.Make(conf),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
 	}
-
-	return up
-}
-
-func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, error) {
-	up := JiraCloudUpstream{}
-	*(up.Config()) = config
-	err := json.Unmarshal(data, &up)
-	if err != nil {
-		return nil, err
-	}
-	up.Config().Key = up.atlassianSecurityContext.BaseURL
-	up.Config().URL = up.atlassianSecurityContext.BaseURL
-	return &up, nil
 }
 
 func (up JiraCloudUpstream) GetDisplayDetails() map[string]string {
@@ -186,4 +170,24 @@ func (up JiraCloudUpstream) JWTFromHTTPRequest(r *http.Request) (
 	}
 
 	return token, tokenString, http.StatusOK, nil
+}
+
+type unmarshaller struct{}
+
+var Unmarshaller unmarshaller
+
+func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreConfig) (upstream.Upstream, error) {
+	up := JiraCloudUpstream{}
+	up.Config().StoreConfig = storeConf
+	err := json.Unmarshal(data, &up)
+	if err != nil {
+		return nil, err
+	}
+	up.Config().Key = up.atlassianSecurityContext.BaseURL
+	up.Config().URL = up.atlassianSecurityContext.BaseURL
+	return &up, nil
+}
+
+func (_ unmarshaller) UnmarshalUser(data []byte) (upstream.User, error) {
+	return jira.UnmarshalUser(data)
 }

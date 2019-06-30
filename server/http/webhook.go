@@ -46,10 +46,7 @@ var eventParamMasks = map[string]uint64{
 
 func processLegacyWebhook(a action.Action) error {
 	ac := a.Context()
-	r, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	r := http_action.Request(a)
 
 	if ac.WebhookSecret == "" {
 		return a.RespondError(http.StatusInternalServerError, nil,

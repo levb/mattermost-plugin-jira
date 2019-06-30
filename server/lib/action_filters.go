@@ -26,10 +26,7 @@ func RequireHTTPDelete(a action.Action) error {
 }
 
 func requireHTTPMethod(a action.Action, method string) error {
-	r, err := http_action.Request(a)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
+	r := http_action.Request(a)
 	if r.Method != method {
 		return a.RespondError(http.StatusMethodNotAllowed, nil,
 			"method %s is not allowed, must be %s", r.Method, method)

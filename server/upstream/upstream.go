@@ -17,9 +17,8 @@ import (
 var ErrWrongUpstreamType = errors.New("wrong upstream type")
 
 type Config struct {
-	StoreConfig
+	StoreConfig `json:"-"`
 
-	// Instance-level
 	Key  string
 	URL  string
 	Type string
@@ -41,15 +40,7 @@ type Upstream interface {
 type upstream struct {
 	config       Config
 	store        store.Store
-	loadUserFunc LoadUserFunc
-}
-
-func NewUpstream(conf Config, store store.Store, loadUserFunc LoadUserFunc) Upstream {
-	return &upstream{
-		config:       conf,
-		store:        store,
-		loadUserFunc: loadUserFunc,
-	}
+	unmarshaller Unmarshaller
 }
 
 func (up upstream) Config() *Config {

@@ -25,7 +25,7 @@ type Action struct {
 	args            []string
 	argsMap         map[string]string
 	commandArgs     *model.CommandArgs
-	CommandResponse *model.CommandResponse
+	commandResponse *model.CommandResponse
 }
 
 type Metadata struct {
@@ -44,12 +44,12 @@ var _ action.Action = (*Action)(nil)
 
 // Make makes a new command Action. In case of an error, it still
 // returns a non-nil Action so that the caller can RespondXXX as needed
-func Make(router action.Router, inner action.Action, commandArgs *model.CommandArgs) (string, action.Action, error) {
+func Make(router *action.Router, inner action.Action, commandArgs *model.CommandArgs) (string, action.Action, error) {
 
 	a := &Action{
 		Action:          inner,
 		commandArgs:     commandArgs,
-		CommandResponse: &model.CommandResponse{},
+		commandResponse: &model.CommandResponse{},
 	}
 
 	a.Context().MattermostUserId = commandArgs.UserId
@@ -146,7 +146,7 @@ func (a *Action) RespondPrintf(format string, args ...interface{}) error {
 }
 
 func (a *Action) RespondRedirect(redirectURL string) error {
-	a.CommandResponse = &model.CommandResponse{
+	a.commandResponse = &model.CommandResponse{
 		GotoLocation: redirectURL,
 	}
 	return nil
@@ -179,7 +179,7 @@ func (a *Action) RespondJSON(value interface{}) error {
 }
 
 func (a *Action) respond(text string) {
-	a.CommandResponse = &model.CommandResponse{
+	a.commandResponse = &model.CommandResponse{
 		ResponseType: model.COMMAND_RESPONSE_TYPE_EPHEMERAL,
 		Text:         text,
 		Username:     a.Context().BotUserName,
@@ -200,4 +200,9 @@ func LogAction(a action.Action) error {
 		a.Debugf("command: %q", commandAction.commandArgs.Command)
 	}
 	return nil
+}
+
+func Response(action action.Action) *model.CommandResponse {
+	a, _ := action.(*Action)
+	return a.commandResponse
 }

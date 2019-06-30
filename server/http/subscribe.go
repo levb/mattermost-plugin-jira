@@ -15,10 +15,7 @@ import (
 
 func processSubscribeWebhook(a action.Action) error {
 	ac := a.Context()
-	r, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	r := http_action.Request(a)
 
 	if subtle.ConstantTimeCompare(
 		[]byte(r.URL.Query().Get("secret")),
@@ -36,10 +33,7 @@ func processSubscribeWebhook(a action.Action) error {
 
 func handleChannelSubscriptions(a action.Action) error {
 	ac := a.Context()
-	r, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	r := http_action.Request(a)
 
 	switch r.Method {
 	case http.MethodPost:

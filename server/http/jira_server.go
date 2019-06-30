@@ -14,10 +14,7 @@ import (
 
 func completeJiraServerOAuth1(a action.Action) error {
 	ac := a.Context()
-	r, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	r := http_action.Request(a)
 	up, _ := ac.Upstream.(*jira_server.JiraServerUpstream)
 
 	u, status, err := up.CompleteOAuth1(ac.API, ac.OneTimeStore, r, ac.PluginURL, ac.MattermostUserId)

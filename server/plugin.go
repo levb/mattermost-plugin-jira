@@ -5,7 +5,7 @@ package main
 
 import (
 	"fmt"
-	"net/http"
+	gohttp "net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,12 +16,16 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	commandr "github.com/mattermost/mattermost-plugin-jira/server/command"
-	httpr "github.com/mattermost/mattermost-plugin-jira/server/http"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/command_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
+	"github.com/mattermost/mattermost-plugin-jira/server/command"
 	"github.com/mattermost/mattermost-plugin-jira/server/config"
-	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-plugin-jira/server/http"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_server"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 )
@@ -29,8 +33,8 @@ import (
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	config   config.Config
-	confLock sync.RWMutex
+	context config.Context
+	lock    sync.RWMutex
 
 	Id      string
 	Version string
@@ -41,19 +45,28 @@ var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
 func (p *Plugin) OnActivate() error {
 	s := store.NewPluginStore(p.API)
 	ots := store.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
-	instanceStore, currentUpstreamStore, knownUpstreamStore := instance.NewUpstreamStore(s)
 
-	rsaPrivateKey, err := app.EnsureRSAPrivateKey(s)
+	rsaPrivateKey, err := lib.EnsureRSAPrivateKey(s)
 	if err != nil {
 		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
-	authTokenSecret, err := app.EnsureAuthTokenSecret(s)
+	authTokenSecret, err := lib.EnsureAuthTokenSecret(s)
 	if err != nil {
 		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
-	instanceLoader := loader.New(instanceStore, currentUpstreamStore, rsaPrivateKey, authTokenSecret)
+
+	upstoreConfig := upstream.StoreConfig{
+		RSAPrivateKey:   rsaPrivateKey,
+		AuthTokenSecret: authTokenSecret,
+	}
+
+	upstore := upstream.NewStore(upstoreConfig, s,
+		map[string]upstream.Unmarshaller{
+			jira_cloud.Type:  jira_cloud.Unmarshaller,
+			jira_server.Type: jira_server.Unmarshaller,
+		})
 
 	// HW FUTURE TODO: Better template management, text vs html
 	dir := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id, "server", "dist", "templates")
@@ -63,22 +76,15 @@ func (p *Plugin) OnActivate() error {
 		return errors.WithMessage(err, "OnActivate: failed to load templates")
 	}
 
-	p.updateConfig(func(conf *config.Config) {
-		conf.RSAPrivateKey = rsaPrivateKey
-		conf.AuthTokenSecret = authTokenSecret
+	p.updateContext(func(c *config.Context) {
+		c.API = p.API
+		c.UpstreamStore = upstore
+		c.OneTimeStore = ots
 
-		conf.API = p.API
-		conf.UserStore = store.NewUserStore(s)
-		conf.UpstreamStore = instanceStore
-		conf.CurrentUpstreamStore = currentUpstreamStore
-		conf.KnownUpstreamsStore = knownUpstreamStore
-		conf.UpstreamLoader = instanceLoader
-		conf.OneTimeStore = ots
-
-		conf.Templates = templates
-		conf.PluginId = p.Id
-		conf.PluginVersion = p.Version
-		conf.PluginURLPath = "/plugins/" + p.Id
+		c.Templates = templates
+		c.PluginId = p.Id
+		c.PluginVersion = p.Version
+		c.PluginURLPath = "/plugins/" + p.Id
 	})
 
 	err = p.OnConfigurationChange()
@@ -104,11 +110,11 @@ func (p *Plugin) OnActivate() error {
 
 // OnConfigurationChange is invoked when configuration changes may have been made.
 func (p *Plugin) OnConfigurationChange() error {
-	oldSC := p.getConfig().StoredConfig
+	oldC := p.getContext().Config
 
 	// Load the public configuration fields from the Mattermost server configuration.
-	newSC := config.StoredConfig{}
-	err := p.API.LoadPluginConfiguration(&newSC)
+	newC := config.Config{}
+	err := p.API.LoadPluginConfiguration(&newC)
 	if err != nil {
 		err = errors.WithMessage(err, "failed to load plugin configuration")
 		p.API.LogError(err.Error())
@@ -118,48 +124,50 @@ func (p *Plugin) OnConfigurationChange() error {
 	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
 
 	newBotUserID := ""
-	if newSC.UserName != oldSC.UserName {
-		user, appErr := p.API.GetUserByUsername(newSC.UserName)
+	if newC.BotUserName != oldC.BotUserName {
+		user, appErr := p.API.GetUserByUsername(newC.BotUserName)
 		if appErr != nil {
 			p.API.LogError(appErr.Error())
-			return errors.WithMessage(appErr, fmt.Sprintf("unable to load user %s", newSC.UserName))
+			return errors.WithMessage(appErr, fmt.Sprintf("unable to load user %s", newC.BotUserName))
 		}
 		newBotUserID = user.Id
 	}
 
-	p.updateConfig(func(conf *config.Config) {
-		conf.StoredConfig = newSC
-		conf.MattermostSiteURL = mattermostSiteURL
-		conf.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(conf.MattermostSiteURL, "_")
-		conf.PluginURLPath = "/plugins/" + manifest.Id
-		conf.PluginURL = strings.TrimRight(conf.MattermostSiteURL, "/") + conf.PluginURLPath
+	p.updateContext(func(c *config.Context) {
+		c.Config = newC
+		c.MattermostSiteURL = mattermostSiteURL
+		c.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(c.MattermostSiteURL, "_")
+		c.PluginURLPath = "/plugins/" + manifest.Id
+		c.PluginURL = strings.TrimRight(c.MattermostSiteURL, "/") + c.PluginURLPath
 
 		if newBotUserID != "" {
-			conf.BotUserId = newBotUserID
+			c.BotUserId = newBotUserID
 		}
 	})
 
 	return nil
 }
 
-func (p *Plugin) ServeHTTP(pc *plugin.Context, w http.ResponseWriter, r *http.Request) {
-	a := action.MakeHTTPAction(app_http.Router, pc, p.getConfig(), r, w)
+func (p *Plugin) ServeHTTP(pc *plugin.Context, w gohttp.ResponseWriter, r *gohttp.Request) {
+	a := action.NewAction(http.Router, p.getContext(), pc, "")
+	a = http_action.Make(a, r, w)
 
-	app_http.Router.RunRoute(r.URL.Path, a)
+	http.Router.RunRoute(r.URL.Path, a)
 }
 
 func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
-	key, a, err := action.MakeCommandAction(command.Router, pc, p.getConfig(), commandArgs)
+	a := action.NewAction(command.Router, p.getContext(), pc, "")
+	key, a, err := command_action.Make(command.Router, a, commandArgs)
 	if err != nil {
 		if a == nil {
 			p.API.LogError(err.Error())
 			return nil, model.NewAppError("Jira plugin", "", nil, err.Error(), 0)
 		}
 		a.RespondError(0, err, "command failed")
-		return a.CommandResponse, nil
+		return command_action.Response(a), nil
 	}
 	command.Router.RunRoute(key, a)
-	return a.CommandResponse, nil
+	return command_action.Response(a), nil
 }
 
 func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error) {
@@ -185,16 +193,16 @@ func (p *Plugin) loadTemplates(dir string) (map[string]*template.Template, error
 	return templates, nil
 }
 
-func (p *Plugin) getConfig() config.Config {
-	p.confLock.RLock()
-	defer p.confLock.RUnlock()
-	return p.config
+func (p *Plugin) getContext() config.Context {
+	p.lock.RLock()
+	defer p.lock.RUnlock()
+	return p.context
 }
 
-func (p *Plugin) updateConfig(f func(conf *config.Config)) config.Config {
-	p.confLock.Lock()
-	defer p.confLock.Unlock()
+func (p *Plugin) updateContext(f func(conf *config.Context)) config.Context {
+	p.lock.Lock()
+	defer p.lock.Unlock()
 
-	f(&p.config)
-	return p.config
+	f(&p.context)
+	return p.context
 }

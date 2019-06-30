@@ -12,8 +12,6 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/store"
 )
 
-type LoadUserFunc func(data []byte) (User, error)
-
 func (up upstream) StoreUser(u User) error {
 	mmkey := up.userkey(u.MattermostId())
 	upkey := up.userkey(u.UpstreamId())
@@ -37,7 +35,7 @@ func (up upstream) LoadUser(mattermostUserId string) (User, error) {
 			"failed to load upstream user for: %q", mattermostUserId)
 	}
 
-	u, err := up.loadUserFunc(data)
+	u, err := up.unmarshaller.UnmarshalUser(data)
 	if err != nil {
 		return nil, errors.WithMessagef(err,
 			"failed to unmarshal user for: %q", mattermostUserId)

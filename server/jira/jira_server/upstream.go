@@ -4,7 +4,6 @@
 package jira_server
 
 import (
-	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -33,37 +32,21 @@ type jiraServerUser struct {
 	Oauth1AccessSecret string `json:",omitempty"`
 }
 
-func NewUpstream(store store.Store, jiraURL, mattermostKey string, rsaPrivateKey *rsa.PrivateKey) upstream.Upstream {
+func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream.Upstream {
 	conf := upstream.Config{
-		StoreConfig: upstream.StoreConfig{
-			RSAPrivateKey: rsaPrivateKey,
-		},
-		Key:  jiraURL,
-		URL:  jiraURL,
-		Type: Type,
+		StoreConfig: *(upstore.Config()),
+		Key:         jiraURL,
+		URL:         jiraURL,
+		Type:        Type,
 	}
 
 	up := &JiraServerUpstream{
-		Upstream:      upstream.NewUpstream(conf, store, jira.UnmarshalUser),
+		Upstream:      upstore.Make(conf),
 		mattermostKey: mattermostKey,
 	}
 
 	return up
 }
-
-func UnmarshalUpstream(data []byte, config upstream.Config) (upstream.Upstream, error) {
-	up := JiraServerUpstream{}
-	*(up.Config()) = config
-	err := json.Unmarshal(data, &up)
-	if err != nil {
-		return nil, err
-	}
-	return &up, nil
-}
-
-// func (up JiraServerUpstream) GetMattermostKey() string {
-// 	return up.mattermostKey
-// }
 
 func (up JiraServerUpstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
@@ -160,4 +143,28 @@ func (up JiraServerUpstream) PublicKeyString() ([]byte, error) {
 		Type:  "PUBLIC KEY",
 		Bytes: b,
 	}), nil
+}
+
+type unmarshaller struct{}
+
+var Unmarshaller unmarshaller
+
+func (_ unmarshaller) UnmarshalUser(data []byte) (upstream.User, error) {
+	u := jiraServerUser{}
+	err := json.Unmarshal(data, &u)
+	if err != nil {
+		return nil, err
+	}
+	return u, nil
+}
+
+func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreConfig) (upstream.Upstream, error) {
+	up := JiraServerUpstream{}
+	up.Config().StoreConfig = storeConf
+	err := json.Unmarshal(data, &up)
+	if err != nil {
+		return nil, err
+	}
+	up.Config().StoreConfig = storeConf
+	return &up, nil
 }

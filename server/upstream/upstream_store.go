@@ -20,11 +20,13 @@ const (
 )
 
 type StoreConfig struct {
-	RSAPrivateKey   *rsa.PrivateKey `json:"none"`
-	AuthTokenSecret []byte          `json:"none"`
+	RSAPrivateKey   *rsa.PrivateKey `json:"-"`
+	AuthTokenSecret []byte          `json:"-"`
 }
 
 type Store interface {
+	Config() *StoreConfig
+	Make(conf Config) Upstream
 	Load(key string) (Upstream, error)
 	LoadCurrent() (Upstream, error)
 	LoadCurrentRaw() ([]byte, error)
@@ -36,43 +38,38 @@ type Store interface {
 	Delete(string) error
 }
 
-type LoadUpstreamFunc func(data []byte) (Upstream, error)
-
-type upstreamStore struct {
-	conf          StoreConfig
-	store         store.Store
-	prefixedStore store.Store
-	loadUserFunc  LoadUserFunc
-	loaders       map[string]LoadUpstreamFunc
+type Unmarshaller interface {
+	UnmarshalUpstream([]byte, StoreConfig) (Upstream, error)
+	UnmarshalUser([]byte) (User, error)
 }
 
-func NewStore(conf StoreConfig, s store.Store, loadUserFunc LoadUserFunc) Store {
+type upstreamStore struct {
+	config        StoreConfig
+	store         store.Store
+	prefixedStore store.Store
+	unmarshallers map[string]Unmarshaller
+}
+
+func NewStore(conf StoreConfig, s store.Store, unmarshallers map[string]Unmarshaller) Store {
 	return &upstreamStore{
 		store:         s,
 		prefixedStore: store.NewHashedKeyStore(s, prefixUpstream),
-		conf:          conf,
-		loadUserFunc:  loadUserFunc,
+		config:        conf,
+		unmarshallers: unmarshallers,
 	}
 }
 
-func (s upstreamStore) MakeUpstream(key, url, typ string, loadUserFunc LoadUserFunc) Upstream {
-	if key == "" {
-		key = url
+func (s upstreamStore) Make(conf Config) Upstream {
+	if conf.Key == "" {
+		conf.Key = conf.URL
 	}
-	return &upstream{
-		config: Config{
-			StoreConfig: s.conf,
-			Key:         key,
-			URL:         url,
-			Type:        typ,
-		},
+	up := &upstream{
+		config:       conf,
 		store:        s.store,
-		loadUserFunc: s.loadUserFunc,
+		unmarshaller: s.unmarshallers[conf.Type],
 	}
-}
-
-func (s *upstreamStore) Register(typ string, loaderf LoadUpstreamFunc) {
-	s.loaders[typ] = loaderf
+	up.config.StoreConfig = s.config
+	return up
 }
 
 func (s upstreamStore) Load(key string) (Upstream, error) {
@@ -107,14 +104,13 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 	}
 
 	upconf := up.Config()
-	loaderf := s.loaders[upconf.Type]
-	if loaderf == nil {
+	unmarshal := s.unmarshallers[upconf.Type]
+	if unmarshal == nil {
 		return nil,
 			errors.Errorf("upstream %q has unsupported type: %q", upconf.Key, upconf.Type)
 	}
 
-	newUp, err := loaderf(data)
-	newUp.Config().StoreConfig = s.conf
+	newUp, err := unmarshal.UnmarshalUpstream(data, s.config)
 	return newUp, nil
 }
 
@@ -208,4 +204,8 @@ func (s upstreamStore) LoadCurrentRaw() ([]byte, error) {
 		return nil, errors.WithMessage(err, "failed to load current upstream")
 	}
 	return data, nil
+}
+
+func (s upstreamStore) Config() *StoreConfig {
+	return &s.config
 }

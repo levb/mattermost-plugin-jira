@@ -27,10 +27,7 @@ const (
 func connectJiraCloudUser(a action.Action) error {
 	ac := a.Context()
 	// up := ac.Upstream.(*jira_cloud.JiraCloudUpstream)
-	request, err := http_action.Request(a)
-	if err != nil {
-		return err
-	}
+	request := http_action.Request(a)
 
 	mmtoken := a.FormValue(argMMToken)
 
