@@ -8,8 +8,6 @@ type User interface {
 	MattermostDisplayName() string
 	UpstreamId() string
 	UpstreamDisplayName() string
-
-	// Settings returns a writeable pointer. Clone or lock to use in goroutines.
 	Settings() *UserSettings
 }
 
@@ -17,21 +15,26 @@ type UserSettings struct {
 	Notifications bool `json:"notifications"`
 }
 
-type user struct {
+type BasicUser struct {
 	MattermostUserId string       `json:"mattermost_user_id"`
 	UpstreamUserId   string       `json:"upstream_user_id"`
 	UserSettings     UserSettings `json:"settings"`
 }
 
-func (u user) MattermostId() string          { return u.MattermostUserId }
-func (u user) UpstreamId() string            { return u.UpstreamUserId }
-func (u user) MattermostDisplayName() string { return "" }
-func (u user) UpstreamDisplayName() string   { return "" }
-func (u *user) Settings() *UserSettings      { return &u.UserSettings }
+func (u BasicUser) MattermostId() string          { return u.MattermostUserId }
+func (u BasicUser) MattermostDisplayName() string { return "" }
+func (u BasicUser) UpstreamId() string            { return u.UpstreamUserId }
+func (u BasicUser) UpstreamDisplayName() string   { return "" }
+func (u *BasicUser) Settings() *UserSettings      { return &u.UserSettings }
 
-func NewUser(mattermostUserId, upstreamUserId string) User {
-	return &user{
+var DefaultUserSettings = UserSettings{
+	Notifications: true,
+}
+
+func NewBasicUser(mattermostUserId, upstreamUserId string) BasicUser {
+	return BasicUser{
 		MattermostUserId: mattermostUserId,
 		UpstreamUserId:   upstreamUserId,
+		UserSettings:     DefaultUserSettings,
 	}
 }

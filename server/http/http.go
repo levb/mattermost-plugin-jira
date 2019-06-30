@@ -49,6 +49,7 @@ const (
 )
 
 var Router = &action.Router{
+	Before: action.Script{http_action.Require},
 	Default: func(a action.Action) error {
 		return a.RespondError(http.StatusNotFound, nil, "not found")
 	},
@@ -145,9 +146,10 @@ var Router = &action.Router{
 			// TODO this is wrong, all 3 are gets, 2 should be posts
 			lib.RequireHTTPGet,
 			lib.RequireUpstream,
+			jira_cloud.RequireUpstream,
 			jira_cloud.RequireJWT,
 			lib.RequireMattermostUserId,
-			lib.RequireMattermostUser,
+			//lib.RequireMattermostUser,
 			connectJiraCloudUser),
 
 		// Oauth1 (Jira Server) user mapping
@@ -156,6 +158,7 @@ var Router = &action.Router{
 			lib.RequireMattermostUserId,
 			lib.RequireMattermostUser,
 			lib.RequireUpstream,
+			jira_server.RequireUpstream,
 			completeJiraServerOAuth1),
 	},
 }

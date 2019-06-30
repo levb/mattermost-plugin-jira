@@ -18,15 +18,13 @@ var ErrWrongUpstreamType = errors.New("wrong upstream type")
 
 type UpstreamConfig struct {
 	StoreConfig `json:"-"`
-
-	Key  string
-	URL  string
-	Type string
+	Key         string
+	URL         string
+	Type        string
 }
 
 type Upstream interface {
 	Config() *UpstreamConfig
-
 	StoreUser(User) error
 	DeleteUser(User) error
 	LoadUser(mattermostUserId string) (User, error)

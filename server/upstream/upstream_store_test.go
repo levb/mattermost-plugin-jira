@@ -12,6 +12,19 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 )
 
+const (
+	up1Type           = "type1"
+	up1Key            = "upstream1"
+	up1URL            = "https://mmtest.madeup-1.notreal"
+	up2Type           = "type2"
+	up2Key            = "https://mmtest.madeup-2.notreal"
+	up2URL            = "https://mmtest.madeup-2.notreal"
+	user1MattermostId = "mmuser__1_1234567890123456"
+	user1UpstreamId   = "up1_user_1"
+	user2MattermostId = "mmuser__2_1234567890123456"
+	user2UpstreamId   = "up2_user_2"
+)
+
 type testUpstream1 struct {
 	BasicUpstream
 	A string
@@ -19,7 +32,7 @@ type testUpstream1 struct {
 }
 
 type testUser1 struct {
-	User
+	BasicUser
 	A string
 }
 
@@ -30,7 +43,7 @@ type testUpstream2 struct {
 }
 
 type testUser2 struct {
-	User
+	BasicUser
 	B string
 }
 
@@ -76,6 +89,42 @@ func (_ unmarshaller2) UnmarshalUpstream(data []byte, storeConf StoreConfig) (Up
 	return unmarshalUpstream(data, storeConf, &up)
 }
 
+func setupUpstreamStoreWith2(underlying kvstore.KVStore) (Store, Upstream, Upstream) {
+	s := NewStore(StoreConfig{},
+		underlying,
+		map[string]Unmarshaller{
+			up1Type: unmarshaller1{},
+			up2Type: unmarshaller2{},
+		},
+	)
+
+	up1 := &testUpstream1{
+		BasicUpstream: s.MakeBasicUpstream(
+			UpstreamConfig{
+				StoreConfig: *s.Config(),
+				Type:        up1Type,
+				Key:         up1Key,
+				URL:         up1URL,
+			}),
+		A: "aaa",
+		B: "bbb",
+	}
+
+	up2 := &testUpstream2{
+		BasicUpstream: s.MakeBasicUpstream(
+			UpstreamConfig{
+				StoreConfig: *s.Config(),
+				Type:        up2Type,
+				Key:         up2Key,
+				URL:         up2URL,
+			}),
+		A: "aaa-aaa",
+		C: "ccc",
+	}
+
+	return s, up1, up2
+}
+
 func TestMakeBasicUpstream(t *testing.T) {
 	s := NewStore(
 		StoreConfig{
@@ -94,43 +143,7 @@ func TestMakeBasicUpstream(t *testing.T) {
 }
 func TestUpstreamStore(t *testing.T) {
 	mockedStore := kvstore.NewMockedStore()
-
-	s := NewStore(StoreConfig{},
-		&mockedStore,
-		map[string]Unmarshaller{
-			"type1": unmarshaller1{},
-			"type2": unmarshaller2{},
-		},
-	)
-
-	up1Key := "upstream1"
-	up1URL := "https://mmtest.madeup-1.notreal"
-	up2Key := "https://mmtest.madeup-2.notreal"
-	up2URL := "https://mmtest.madeup-2.notreal"
-
-	up1 := testUpstream1{
-		BasicUpstream: s.MakeBasicUpstream(
-			UpstreamConfig{
-				StoreConfig: *s.Config(),
-				Type:        "type1",
-				Key:         up1Key,
-				URL:         up1URL,
-			}),
-		A: "aaa",
-		B: "bbb",
-	}
-
-	up2 := testUpstream2{
-		BasicUpstream: s.MakeBasicUpstream(
-			UpstreamConfig{
-				StoreConfig: *s.Config(),
-				Type:        "type2",
-				Key:         up2Key,
-				URL:         up2URL,
-			}),
-		A: "aaa-aaa",
-		C: "ccc",
-	}
+	s, up1, up2 := setupUpstreamStoreWith2(mockedStore)
 
 	t.Run("Initial not found", func(t *testing.T) {
 		_, err := s.Load(up1Key)
@@ -146,11 +159,11 @@ func TestUpstreamStore(t *testing.T) {
 	})
 
 	t.Run("Store", func(t *testing.T) {
-		err := s.Store(&up1)
+		err := s.Store(up1)
 		require.NoError(t, err)
-		err = s.Store(&up2)
+		err = s.Store(up2)
 		require.NoError(t, err)
-		err = s.StoreCurrent(&up2)
+		err = s.StoreCurrent(up2)
 		require.NoError(t, err)
 	})
 
@@ -175,8 +188,8 @@ func TestUpstreamStore(t *testing.T) {
 		known, err := s.LoadKnown()
 		require.NoError(t, err)
 		require.Equal(t, 2, len(known))
-		require.Equal(t, "type1", known[up1Key])
-		require.Equal(t, "type2", known[up2Key])
+		require.Equal(t, up1Type, known[up1Key])
+		require.Equal(t, up2Type, known[up2Key])
 		data, err := s.LoadCurrentRaw()
 		require.NoError(t, err)
 		require.Equal(t, `{"Key":"https://mmtest.madeup-2.notreal","URL":"https://mmtest.madeup-2.notreal","Type":"type2","A":"aaa-aaa","C":"ccc"}`, string(data))

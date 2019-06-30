@@ -18,17 +18,20 @@ import (
 type JiraUser jira.User
 
 type User struct {
-	upstream.User
+	upstream.BasicUser
 	JiraUser
 }
 
-func UnmarshalUser(data []byte) (upstream.User, error) {
+func UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
 	u := User{}
 	err := json.Unmarshal(data, &u)
 	if err != nil {
 		return nil, err
 	}
-	return u, nil
+	if u.BasicUser.MattermostUserId == "" {
+		u.BasicUser.MattermostUserId = defaultId
+	}
+	return &u, nil
 }
 
 func GetUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,

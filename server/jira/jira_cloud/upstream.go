@@ -176,13 +176,13 @@ type unmarshaller struct{}
 
 var Unmarshaller unmarshaller
 
-func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreConfig) (upstream.Upstream, error) {
+func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
 	up := JiraCloudUpstream{}
-	up.Config().StoreConfig = storeConf
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
+	up.BasicUpstream = basicUp
 
 	asc := AtlassianSecurityContext{}
 	err = json.Unmarshal([]byte(up.RawAtlassianSecurityContext), &asc)
@@ -193,6 +193,6 @@ func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreCon
 	return &up, nil
 }
 
-func (_ unmarshaller) UnmarshalUser(data []byte) (upstream.User, error) {
-	return jira.UnmarshalUser(data)
+func (_ unmarshaller) UnmarshalUser(data []byte, mattermostUserId string) (upstream.User, error) {
+	return jira.UnmarshalUser(data, mattermostUserId)
 }

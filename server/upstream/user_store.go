@@ -29,17 +29,21 @@ func (up BasicUpstream) StoreUser(u User) error {
 
 func (up BasicUpstream) LoadUser(mattermostUserId string) (User, error) {
 	mmkey := up.userkey(mattermostUserId)
+
+	fmt.Printf("<><> LoadUser 1 %+v\n", up)
+	fmt.Printf("<><> LoadUser 2 %+v\n", up.kv)
 	data, err := up.kv.Load(mmkey)
 	if err != nil {
 		return nil, err
 	}
 
-	u, err := up.unmarshaller.UnmarshalUser(data)
+	u, err := up.unmarshaller.UnmarshalUser(data, mattermostUserId)
 	if err != nil {
 		return nil, err
 	}
-	if u.MattermostId() == "" && u.MattermostId() != mattermostUserId {
-		return nil, errors.Errorf("stored user id mismatch: %q", mattermostUserId)
+	if u.MattermostId() != mattermostUserId {
+		return nil, errors.Errorf(
+			"stored user id %q did not match the current user id: %q", u.MattermostId(), mattermostUserId)
 	}
 
 	return u, nil

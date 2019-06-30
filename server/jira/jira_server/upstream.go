@@ -7,13 +7,15 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"net/http"
 
 	gojira "github.com/andygrunwald/go-jira"
 	"github.com/dghubble/oauth1"
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
+	"github.com/mattermost/mattermost-plugin-jira/server/lib"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
@@ -24,12 +26,6 @@ const RouteOAuth1Complete = "/oauth1/complete.html"
 type JiraServerUpstream struct {
 	upstream.BasicUpstream
 	mattermostKey string
-}
-
-type jiraServerUser struct {
-	jira.User
-	Oauth1AccessToken  string `json:",omitempty"`
-	Oauth1AccessSecret string `json:",omitempty"`
 }
 
 func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream.Upstream {
@@ -145,25 +141,42 @@ func (up JiraServerUpstream) PublicKeyString() ([]byte, error) {
 	}), nil
 }
 
+func RequireUpstream(a action.Action) error {
+	err := lib.RequireUpstream(a)
+	if err != nil {
+		return err
+	}
+	up, ok := a.Context().Upstream.(*JiraServerUpstream)
+	if !ok {
+		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
+			"Jira Server upstream required, got %T", a.Context().Upstream))
+	}
+	a.Debugf("action: verified Jira Server instance %+v", up)
+	return nil
+}
+
 type unmarshaller struct{}
 
 var Unmarshaller unmarshaller
 
-func (_ unmarshaller) UnmarshalUser(data []byte) (upstream.User, error) {
+func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
 	u := jiraServerUser{}
 	err := json.Unmarshal(data, &u)
 	if err != nil {
 		return nil, err
 	}
-	return u, nil
+	if u.BasicUser.MattermostUserId == "" {
+		u.BasicUser.MattermostUserId = defaultId
+	}
+	return &u, nil
 }
 
-func (_ unmarshaller) UnmarshalUpstream(data []byte, storeConf upstream.StoreConfig) (upstream.Upstream, error) {
+func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
 	up := JiraServerUpstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	up.Config().StoreConfig = storeConf
+	up.BasicUpstream = basicUp
 	return &up, nil
 }

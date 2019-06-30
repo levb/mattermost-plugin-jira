@@ -37,8 +37,8 @@ type Store interface {
 }
 
 type Unmarshaller interface {
-	UnmarshalUpstream([]byte, StoreConfig) (Upstream, error)
-	UnmarshalUser([]byte) (User, error)
+	UnmarshalUpstream([]byte, BasicUpstream) (Upstream, error)
+	UnmarshalUser([]byte, string) (User, error)
 }
 
 type upstreamStore struct {
@@ -100,6 +100,7 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 	if err != nil {
 		return nil, err
 	}
+	up.kv = s.kv
 
 	upconf := up.Config()
 	unmarshal := s.unmarshallers[upconf.Type]
@@ -107,8 +108,9 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 		return nil,
 			errors.Errorf("upstream %q has unsupported type: %q", upconf.Key, upconf.Type)
 	}
+	up.unmarshaller = unmarshal
 
-	newUp, err := unmarshal.UnmarshalUpstream(data, s.config)
+	newUp, err := unmarshal.UnmarshalUpstream(data, up)
 	return newUp, nil
 }
 

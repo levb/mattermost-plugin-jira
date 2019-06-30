@@ -15,12 +15,12 @@ func RequireUpstream(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	cloudUp, ok := a.Context().Upstream.(*JiraCloudUpstream)
+	up, ok := a.Context().Upstream.(*JiraCloudUpstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Cloud upstream required, got %T", a.Context().Upstream))
 	}
-	a.Debugf("action: verified Jira Cloud instance %q", cloudUp.Config().Key)
+	a.Debugf("action: verified Jira Cloud instance %+v", up)
 	return nil
 }
 
