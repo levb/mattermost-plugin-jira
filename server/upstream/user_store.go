@@ -29,9 +29,6 @@ func (up BasicUpstream) StoreUser(u User) error {
 
 func (up BasicUpstream) LoadUser(mattermostUserId string) (User, error) {
 	mmkey := up.userkey(mattermostUserId)
-
-	fmt.Printf("<><> LoadUser 1 %+v\n", up)
-	fmt.Printf("<><> LoadUser 2 %+v\n", up.kv)
 	data, err := up.kv.Load(mmkey)
 	if err != nil {
 		return nil, err

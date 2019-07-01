@@ -4,7 +4,6 @@
 package jira_cloud
 
 import (
-	"fmt"
 	"net/http"
 	"path"
 
@@ -190,14 +189,12 @@ func userFromTokens(a action.Action) (*jira.User, string, error) {
 	ac := a.Context()
 	mmtoken := a.FormValue(argMMToken)
 	up := ac.Upstream.(*Upstream)
-	fmt.Printf("<><> userFromTokens: mmtoken %q, mattermostUserId %q\n", mmtoken, ac.MattermostUserId)
 
 	juser := jira.JiraUser{
 		Key:         ac.UpstreamJWTUserKey,
 		Name:        ac.UpstreamJWTUsername,
 		DisplayName: ac.UpstreamJWTDisplayName,
 	}
-	fmt.Printf("<><> userFromTokens: juser %+v\n", juser)
 	requestedUserId, secret, err := up.parseAuthToken(mmtoken)
 	if err != nil {
 		return nil, "", a.RespondError(http.StatusUnauthorized, err)

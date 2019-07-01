@@ -9,7 +9,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -45,13 +44,10 @@ func (up Upstream) newAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	fmt.Printf("<><> NewAuthToken 1 %s\n", string(jsonBytes))
-	fmt.Printf("<><> NewAuthToken 2 %s\n", string(up.Config().AuthTokenSecret))
 	encrypted, err := encrypt(jsonBytes, up.Config().AuthTokenSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
-	fmt.Printf("<><> NewAuthToken 3 %v\n", len(encrypted))
 
 	return encode(encrypted)
 }
@@ -100,14 +96,11 @@ func (up Upstream) parseAuthToken(encoded string) (string, string, error) {
 			return err
 		}
 
-		fmt.Printf("<><> jsonBytes %v\n", string(jsonBytes))
-
 		err = json.Unmarshal(jsonBytes, &t)
 		if err != nil {
 			return err
 		}
 
-		fmt.Printf("<><> t %+v\n", t)
 		if t.Expires.Before(time.Now()) {
 			return errors.New("Expired token")
 		}

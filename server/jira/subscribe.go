@@ -333,9 +333,9 @@ func editChannelSubscription(api plugin.API, mattermostUserId string, body io.Re
 	}
 
 	err = atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
-		subs, err := subscriptionsFromJson(initialBytes)
-		if err != nil {
-			return nil, err
+		subs, moderr := subscriptionsFromJson(initialBytes)
+		if moderr != nil {
+			return nil, moderr
 		}
 
 		oldSub, ok := subs.Channel.ById[subscription.Id]
@@ -345,9 +345,9 @@ func editChannelSubscription(api plugin.API, mattermostUserId string, body io.Re
 		subs.Channel.remove(&oldSub)
 		subs.Channel.add(&subscription)
 
-		modifiedBytes, marshalErr := json.Marshal(&subs)
-		if marshalErr != nil {
-			return nil, marshalErr
+		modifiedBytes, moderr := json.Marshal(&subs)
+		if moderr != nil {
+			return nil, moderr
 		}
 
 		return modifiedBytes, nil
