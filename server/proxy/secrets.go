@@ -1,4 +1,4 @@
-package lib
+package proxy
 
 import (
 	"crypto/rand"

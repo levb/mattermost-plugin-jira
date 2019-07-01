@@ -22,7 +22,7 @@
 	"modules": {
 		"generalPages": [
 			{
-				"url": "{{ .RouteACUserConfirm }}",
+				"url": "{{ .RouteACUserRedirect }}",
 				"name": {
 					"value": "User mapping and configuration page"
 				},

@@ -7,15 +7,15 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 )
 
 func RequireUpstream(a action.Action) error {
-	err := lib.RequireUpstream(a)
+	err := proxy.RequireUpstream(a)
 	if err != nil {
 		return err
 	}
-	up, ok := a.Context().Upstream.(*JiraCloudUpstream)
+	up, ok := a.Context().Upstream.(*Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Cloud upstream required, got %T", a.Context().Upstream))
@@ -33,7 +33,7 @@ func RequireJWT(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	cloudUp, _ := ac.Upstream.(*JiraCloudUpstream)
+	cloudUp, _ := ac.Upstream.(*Upstream)
 
 	tokenString := a.FormValue("jwt")
 	if tokenString == "" {
@@ -54,8 +54,28 @@ func RequireJWT(a action.Action) error {
 			"failed to validate JWT")
 	}
 
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return a.RespondError(http.StatusBadRequest, nil,
+			"invalid JWT claims")
+	}
+	contextClaim, ok := claims["context"].(map[string]interface{})
+	if !ok {
+		return a.RespondError(http.StatusBadRequest, nil,
+			"invalid JWT claim context")
+	}
+	userProps, ok := contextClaim["user"].(map[string]interface{})
+	if !ok {
+		return a.RespondError(http.StatusBadRequest, nil,
+			"invalid JWT: no user data")
+	}
+
+	ac.UpstreamJWTUserKey, _ = userProps["userKey"].(string)
+	ac.UpstreamJWTUsername, _ = userProps["username"].(string)
+	ac.UpstreamJWTDisplayName, _ = userProps["displayName"].(string)
 	ac.UpstreamJWT = token
 	ac.UpstreamRawJWT = tokenString
+
 	a.Debugf("action: verified Jira JWT")
 	return nil
 }

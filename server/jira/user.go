@@ -10,7 +10,9 @@ import (
 	"github.com/andygrunwald/go-jira"
 	"github.com/pkg/errors"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
@@ -28,13 +30,15 @@ func UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if u.BasicUser.MattermostUserId == "" {
-		u.BasicUser.MattermostUserId = defaultId
+	if u.BasicUser.MUserId == "" {
+		u.BasicUser.MUserId = defaultId
 	}
 	return &u, nil
 }
 
-func GetUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,
+// getUserConnectURL is a convenience function that checks that the user doesn't
+// already exist before calling upstream's GetUserConnectURL.
+func getUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,
 	up upstream.Upstream, mattermostUserId string) (string, int, error) {
 	// Users shouldn't be able to make multiple connections.
 	_, err := up.LoadUser(mattermostUserId)
@@ -58,25 +62,28 @@ func GetUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,
 }
 
 type GetUserInfoResponse struct {
-	// Including the upstream User object here as an interface,
+	// Including the upstream BasicUser object here as an interface,
 	// so it serializes itself inline with the other fields
-	upstream.User
-
-	IsConnected       bool   `json:"is_connected"`
-	UpstreamInstalled bool   `json:"instance_installed"`
-	UpstreamURL       string `json:"jira_url,omitempty"`
+	UpstreamUserId    string                `json:"upstream_user_id"`
+	Settings          upstream.UserSettings `json:"settings"`
+	IsConnected       bool                  `json:"is_connected"`
+	UpstreamInstalled bool                  `json:"instance_installed"`
+	UpstreamURL       string                `json:"jira_url,omitempty"`
 }
 
-func GetUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoResponse {
+func getUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoResponse {
 	resp := GetUserInfoResponse{}
 	up, err := upstore.LoadCurrent()
+	if err != nil {
+		return resp
+	}
+	resp.UpstreamInstalled = true
+	resp.UpstreamURL = up.Config().URL
+	u, err := up.LoadUser(mattermostUserId)
 	if err == nil {
-		resp.UpstreamInstalled = true
-		resp.UpstreamURL = up.Config().URL
-		resp.User, err = up.LoadUser(mattermostUserId)
-		if err == nil {
-			resp.IsConnected = true
-		}
+		resp.IsConnected = true
+		resp.UpstreamUserId = u.UpstreamUserId()
+		resp.Settings = *u.Settings()
 	}
 	return resp
 }
@@ -88,5 +95,24 @@ func StoreUserSettingsNotifications(up upstream.Upstream, u upstream.User, value
 	if err != nil {
 		return errors.WithMessage(err, "Could not store new settings. Please contact your system administrator")
 	}
+	return nil
+}
+
+func RequireClient(a action.Action) error {
+	ac := a.Context()
+	if ac.JiraClient != nil {
+		return nil
+	}
+	err := action.Script{proxy.RequireUpstream, proxy.RequireUpstreamUser}.Run(a)
+	if err != nil {
+		return err
+	}
+
+	client, err := ac.Upstream.GetClient(ac.PluginId, ac.UpstreamUser)
+	if err != nil {
+		return a.RespondError(http.StatusInternalServerError, err)
+	}
+	ac.JiraClient = client
+	a.Debugf("action: loaded upstream client for %q", ac.UpstreamUser.UpstreamDisplayName())
 	return nil
 }

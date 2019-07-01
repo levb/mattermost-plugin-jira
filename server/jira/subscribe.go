@@ -80,7 +80,7 @@ func NewSubscriptions() *Subscriptions {
 	}
 }
 
-func SubscriptionsFromJson(bytes []byte) (*Subscriptions, error) {
+func subscriptionsFromJson(bytes []byte) (*Subscriptions, error) {
 	var subs *Subscriptions
 	if len(bytes) != 0 {
 		unmarshalErr := json.Unmarshal(bytes, &subs)
@@ -165,21 +165,7 @@ func getSubscriptions(api plugin.API) (*Subscriptions, error) {
 	if err != nil {
 		return nil, err
 	}
-	return SubscriptionsFromJson(data)
-}
-
-func getSubscriptionsForChannel(api plugin.API, channelId string) ([]ChannelSubscription, error) {
-	subs, err := getSubscriptions(api)
-	if err != nil {
-		return nil, err
-	}
-
-	channelSubscriptions := []ChannelSubscription{}
-	for _, channelSubscriptionId := range subs.Channel.IdByChannelId[channelId] {
-		channelSubscriptions = append(channelSubscriptions, subs.Channel.ById[channelSubscriptionId])
-	}
-
-	return channelSubscriptions, nil
+	return subscriptionsFromJson(data)
 }
 
 func getChannelSubscription(api plugin.API, subscriptionId string) (*ChannelSubscription, error) {
@@ -198,7 +184,7 @@ func getChannelSubscription(api plugin.API, subscriptionId string) (*ChannelSubs
 
 func removeChannelSubscription(api plugin.API, subscriptionId string) error {
 	return atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
-		subs, err := SubscriptionsFromJson(initialBytes)
+		subs, err := subscriptionsFromJson(initialBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -221,36 +207,13 @@ func removeChannelSubscription(api plugin.API, subscriptionId string) error {
 
 func addChannelSubscription(api plugin.API, newSubscription *ChannelSubscription) error {
 	return atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
-		subs, err := SubscriptionsFromJson(initialBytes)
+		subs, err := subscriptionsFromJson(initialBytes)
 		if err != nil {
 			return nil, err
 		}
 
 		newSubscription.Id = model.NewId()
 		subs.Channel.add(newSubscription)
-
-		modifiedBytes, marshalErr := json.Marshal(&subs)
-		if marshalErr != nil {
-			return nil, marshalErr
-		}
-
-		return modifiedBytes, nil
-	})
-}
-
-func editChannelSubscription(api plugin.API, modifiedSubscription *ChannelSubscription) error {
-	return atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
-		subs, err := SubscriptionsFromJson(initialBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		oldSub, ok := subs.Channel.ById[modifiedSubscription.Id]
-		if !ok {
-			return nil, errors.New("Existing subscription does not exist.")
-		}
-		subs.Channel.remove(&oldSub)
-		subs.Channel.add(modifiedSubscription)
 
 		modifiedBytes, marshalErr := json.Marshal(&subs)
 		if marshalErr != nil {
@@ -298,7 +261,7 @@ func atomicModify(api plugin.API, key string, modify func(initialValue []byte) (
 	return nil
 }
 
-func ProcessSubscribeWebhook(api plugin.API, up upstream.Upstream, body io.Reader, botUserId string) (int, error) {
+func processSubscribeWebhook(api plugin.API, up upstream.Upstream, body io.Reader, botUserId string) (int, error) {
 	var err error
 	var status int
 	wh, jwh, err := ParseWebhook(body)
@@ -326,7 +289,7 @@ func ProcessSubscribeWebhook(api plugin.API, up upstream.Upstream, body io.Reade
 	return http.StatusOK, nil
 }
 
-func CreateChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
+func createChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
 	subscription := ChannelSubscription{}
 	err := json.NewDecoder(body).Decode(&subscription)
 	if err != nil {
@@ -351,7 +314,7 @@ func CreateChannelSubscription(api plugin.API, mattermostUserId string, body io.
 	return http.StatusOK, nil
 }
 
-func EditChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
+func editChannelSubscription(api plugin.API, mattermostUserId string, body io.Reader) (int, error) {
 	subscription := ChannelSubscription{}
 	err := json.NewDecoder(body).Decode(&subscription)
 	if err != nil {
@@ -369,14 +332,34 @@ func EditChannelSubscription(api plugin.API, mattermostUserId string, body io.Re
 			errors.New("Not a member of the channel specified")
 	}
 
-	if err := editChannelSubscription(api, &subscription); err != nil {
+	err = atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
+		subs, err := subscriptionsFromJson(initialBytes)
+		if err != nil {
+			return nil, err
+		}
+
+		oldSub, ok := subs.Channel.ById[subscription.Id]
+		if !ok {
+			return nil, errors.New("Existing subscription does not exist.")
+		}
+		subs.Channel.remove(&oldSub)
+		subs.Channel.add(&subscription)
+
+		modifiedBytes, marshalErr := json.Marshal(&subs)
+		if marshalErr != nil {
+			return nil, marshalErr
+		}
+
+		return modifiedBytes, nil
+	})
+	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 
 	return http.StatusOK, nil
 }
 
-func DeleteChannelSubscription(api plugin.API, mattermostUserId, subscriptionId string) (int, error) {
+func deleteChannelSubscription(api plugin.API, mattermostUserId, subscriptionId string) (int, error) {
 	subscription, err := getChannelSubscription(api, subscriptionId)
 	if err != nil {
 		return http.StatusBadRequest,
@@ -397,15 +380,19 @@ func DeleteChannelSubscription(api plugin.API, mattermostUserId, subscriptionId 
 	return http.StatusOK, nil
 }
 
-func GetChannelSubscriptions(api plugin.API, mattermostUserId, channelId string) ([]ChannelSubscription, int, error) {
+func getChannelSubscriptions(api plugin.API, mattermostUserId, channelId string) ([]ChannelSubscription, int, error) {
 	if _, appErr := api.GetChannelMember(channelId, mattermostUserId); appErr != nil {
 		return nil, http.StatusForbidden, errors.New("Not a member of the channel specified")
 	}
 
-	subscriptions, err := getSubscriptionsForChannel(api, channelId)
+	subs, err := getSubscriptions(api)
 	if err != nil {
-		return nil, http.StatusInternalServerError,
-			errors.WithMessage(err, "unable to get channel subscriptions")
+		return nil, http.StatusInternalServerError, err
+	}
+
+	subscriptions := []ChannelSubscription{}
+	for _, channelSubscriptionId := range subs.Channel.IdByChannelId[channelId] {
+		subscriptions = append(subscriptions, subs.Channel.ById[channelSubscriptionId])
 	}
 
 	return subscriptions, http.StatusOK, nil

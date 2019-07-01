@@ -18,13 +18,11 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/action/command_action"
 	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
-	"github.com/mattermost/mattermost-plugin-jira/server/command"
 	"github.com/mattermost/mattermost-plugin-jira/server/config"
-	"github.com/mattermost/mattermost-plugin-jira/server/http"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_cloud"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira/jira_server"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -46,12 +44,12 @@ func (p *Plugin) OnActivate() error {
 	s := kvstore.NewPluginStore(p.API)
 	ots := kvstore.NewPluginOneTimeStore(p.API, 60*15) // TTL 15 minutes
 
-	rsaPrivateKey, err := lib.EnsureRSAPrivateKey(s)
+	rsaPrivateKey, err := proxy.EnsureRSAPrivateKey(s)
 	if err != nil {
 		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
 	}
-	authTokenSecret, err := lib.EnsureAuthTokenSecret(s)
+	authTokenSecret, err := proxy.EnsureAuthTokenSecret(s)
 	if err != nil {
 		p.API.LogError(err.Error())
 		return errors.WithMessage(err, "OnActivate failed")
@@ -150,15 +148,15 @@ func (p *Plugin) OnConfigurationChange() error {
 
 func (p *Plugin) ServeHTTP(pc *plugin.Context, w gohttp.ResponseWriter, r *gohttp.Request) {
 	fmt.Println("<><> ", r.URL)
-	a := action.NewAction(http.Router, p.getContext(), pc, "")
+	a := action.NewAction(httpRouter, p.getContext(), pc, "")
 	a = http_action.Make(a, r, w)
 
-	http.Router.RunRoute(r.URL.Path, a)
+	httpRouter.RunRoute(r.URL.Path, a)
 }
 
 func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandArgs) (*model.CommandResponse, *model.AppError) {
-	a := action.NewAction(command.Router, p.getContext(), pc, "")
-	key, a, err := command_action.Make(command.Router, a, commandArgs)
+	a := action.NewAction(commandRouter, p.getContext(), pc, "")
+	key, a, err := command_action.Make(commandRouter, a, commandArgs)
 	if err != nil {
 		if a == nil {
 			p.API.LogError(err.Error())
@@ -167,7 +165,7 @@ func (p *Plugin) ExecuteCommand(pc *plugin.Context, commandArgs *model.CommandAr
 		a.RespondError(0, err, "command failed")
 		return command_action.Response(a), nil
 	}
-	command.Router.RunRoute(key, a)
+	commandRouter.RunRoute(key, a)
 	return command_action.Response(a), nil
 }
 

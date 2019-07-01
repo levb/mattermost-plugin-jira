@@ -1,7 +1,7 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package http
+package jira
 
 import (
 	"crypto/subtle"
@@ -11,20 +11,39 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
-	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 )
 
-const maskLegacy = jira.WebhookEventCreated |
-	jira.WebhookEventUpdatedReopened |
-	jira.WebhookEventUpdatedResolved |
-	jira.WebhookEventDeletedUnresolved
+const (
+	routeWebhook           = "/webhook"
+	routeWebhookIssueEvent = "/issue_event"
+)
 
-const maskComments = jira.WebhookEventCreatedComment |
-	jira.WebhookEventDeletedComment |
-	jira.WebhookEventUpdatedComment
+var webhookHTTPRoutes = map[string]*action.Route{
+	// Incoming Jira webhooks
+	routeWebhook: action.NewRoute(
+		proxy.RequireHTTPMethod(http.MethodPost),
+		proxy.RequireUpstream,
+		processLegacyWebhook,
+	),
+	routeWebhookIssueEvent: action.NewRoute(
+		proxy.RequireHTTPMethod(http.MethodPost),
+		proxy.RequireUpstream,
+		processLegacyWebhook,
+	),
+}
+
+const maskLegacy = WebhookEventCreated |
+	WebhookEventUpdatedReopened |
+	WebhookEventUpdatedResolved |
+	WebhookEventDeletedUnresolved
+
+const maskComments = WebhookEventCreatedComment |
+	WebhookEventDeletedComment |
+	WebhookEventUpdatedComment
 
 const maskDefault = maskLegacy |
-	jira.WebhookEventUpdatedAssignee |
+	WebhookEventUpdatedAssignee |
 	maskComments
 
 const maskAll = math.MaxUint64
@@ -33,15 +52,15 @@ const maskAll = math.MaxUint64
 // are posted to Mattermost. A matching parameter with a non-empty value must
 // be added to turn on the event display.
 var eventParamMasks = map[string]uint64{
-	"updated_attachment":  jira.WebhookEventUpdatedAttachment,  // updated attachments
-	"updated_description": jira.WebhookEventUpdatedDescription, // issue description edited
-	"updated_labels":      jira.WebhookEventUpdatedLabels,      // updated labels
-	"updated_prioity":     jira.WebhookEventUpdatedPriority,    // changes in priority
-	"updated_rank":        jira.WebhookEventUpdatedRank,        // ranked higher or lower
-	"updated_sprint":      jira.WebhookEventUpdatedSprint,      // assigned to a different sprint
-	"updated_status":      jira.WebhookEventUpdatedStatus,      // transitions like Done, In Progress
-	"updated_summary":     jira.WebhookEventUpdatedSummary,     // issue renamed
-	"updated_all":         maskAll,                             // all events
+	"updated_attachment":  WebhookEventUpdatedAttachment,  // updated attachments
+	"updated_description": WebhookEventUpdatedDescription, // issue description edited
+	"updated_labels":      WebhookEventUpdatedLabels,      // updated labels
+	"updated_prioity":     WebhookEventUpdatedPriority,    // changes in priority
+	"updated_rank":        WebhookEventUpdatedRank,        // ranked higher or lower
+	"updated_sprint":      WebhookEventUpdatedSprint,      // assigned to a different sprint
+	"updated_status":      WebhookEventUpdatedStatus,      // transitions like Done, In Progress
+	"updated_summary":     WebhookEventUpdatedSummary,     // issue renamed
+	"updated_all":         maskAll,                        // all events
 }
 
 func processLegacyWebhook(a action.Action) error {
@@ -88,7 +107,7 @@ func processLegacyWebhook(a action.Action) error {
 		return a.RespondError(appErr.StatusCode, appErr)
 	}
 
-	wh, _, err := jira.ParseWebhook(r.Body)
+	wh, _, err := ParseWebhook(r.Body)
 	if err != nil {
 		return a.RespondError(http.StatusBadRequest, err)
 	}

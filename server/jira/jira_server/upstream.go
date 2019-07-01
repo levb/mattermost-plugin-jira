@@ -15,15 +15,13 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
 const Type = "server"
 
-const RouteOAuth1Complete = "/oauth1/complete.html"
-
-type JiraServerUpstream struct {
+type Upstream struct {
 	upstream.BasicUpstream
 	mattermostKey string
 }
@@ -36,7 +34,7 @@ func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream
 		Type:        Type,
 	}
 
-	up := &JiraServerUpstream{
+	up := &Upstream{
 		BasicUpstream: upstore.MakeBasicUpstream(conf),
 		mattermostKey: mattermostKey,
 	}
@@ -44,13 +42,13 @@ func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream
 	return up
 }
 
-func (up JiraServerUpstream) GetDisplayDetails() map[string]string {
+func (up Upstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
 		"MattermostKey": up.mattermostKey,
 	}
 }
 
-func (up JiraServerUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
+func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -59,7 +57,7 @@ func (up JiraServerUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 		}
 	}()
 
-	oauth1Config, err := up.GetOAuth1Config(pluginURL)
+	oauth1Config, err := up.getOAuth1Config(pluginURL)
 	if err != nil {
 		return "", err
 	}
@@ -83,7 +81,7 @@ func (up JiraServerUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	return authURL.String(), nil
 }
 
-func (up JiraServerUpstream) GetClient(pluginURL string,
+func (up Upstream) GetClient(pluginURL string,
 	u upstream.User) (returnClient *gojira.Client, returnErr error) {
 	defer func() {
 		if returnErr != nil {
@@ -100,7 +98,7 @@ func (up JiraServerUpstream) GetClient(pluginURL string,
 		return nil, errors.New("no access token, please use /jira connect")
 	}
 
-	oauth1Config, err := up.GetOAuth1Config(pluginURL)
+	oauth1Config, err := up.getOAuth1Config(pluginURL)
 	if err != nil {
 		return nil, err
 	}
@@ -115,11 +113,11 @@ func (up JiraServerUpstream) GetClient(pluginURL string,
 	return jiraClient, nil
 }
 
-func (up JiraServerUpstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, error) {
+func (up Upstream) getOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
 		ConsumerKey:    up.mattermostKey,
 		ConsumerSecret: "dontcare",
-		CallbackURL:    pluginURL + "/" + RouteOAuth1Complete,
+		CallbackURL:    pluginURL + "/" + routeOAuth1Complete,
 		Endpoint: oauth1.Endpoint{
 			RequestTokenURL: up.Config().URL + "/plugins/servlet/oauth/request-token",
 			AuthorizeURL:    up.Config().URL + "/plugins/servlet/oauth/authorize",
@@ -129,7 +127,7 @@ func (up JiraServerUpstream) GetOAuth1Config(pluginURL string) (*oauth1.Config, 
 	}, nil
 }
 
-func (up JiraServerUpstream) PublicKeyString() ([]byte, error) {
+func (up Upstream) PublicKeyString() ([]byte, error) {
 	b, err := x509.MarshalPKIXPublicKey(&up.Config().RSAPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")
@@ -142,11 +140,11 @@ func (up JiraServerUpstream) PublicKeyString() ([]byte, error) {
 }
 
 func RequireUpstream(a action.Action) error {
-	err := lib.RequireUpstream(a)
+	err := proxy.RequireUpstream(a)
 	if err != nil {
 		return err
 	}
-	up, ok := a.Context().Upstream.(*JiraServerUpstream)
+	up, ok := a.Context().Upstream.(*Upstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Server upstream required, got %T", a.Context().Upstream))
@@ -157,7 +155,7 @@ func RequireUpstream(a action.Action) error {
 
 type unmarshaller struct{}
 
-var Unmarshaller unmarshaller
+var Unmarshaller upstream.Unmarshaller = unmarshaller{}
 
 func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
 	u := jiraServerUser{}
@@ -165,14 +163,14 @@ func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.Use
 	if err != nil {
 		return nil, err
 	}
-	if u.BasicUser.MattermostUserId == "" {
-		u.BasicUser.MattermostUserId = defaultId
+	if u.BasicUser.MUserId == "" {
+		u.BasicUser.MUserId = defaultId
 	}
 	return &u, nil
 }
 
 func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
-	up := JiraServerUpstream{}
+	up := Upstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err

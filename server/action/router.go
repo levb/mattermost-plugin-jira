@@ -30,6 +30,26 @@ type Router struct {
 	Default Func
 }
 
+func (router *Router) AddRoute(key string, route Route) {
+	router.Routes[key] = &route
+}
+
+func (router *Router) AddRoutes(routes map[string]*Route) {
+	for k, v := range routes {
+		router.Routes[k] = v
+	}
+}
+
+func AppendRoutes(routes ...map[string]*Route) map[string]*Route {
+	to := map[string]*Route{}
+	for _, set := range routes {
+		for k, v := range set {
+			to[k] = v
+		}
+	}
+	return to
+}
+
 func (router Router) RunRoute(key string, a Action) {
 	key = strings.TrimRight(key, "/")
 

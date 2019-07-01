@@ -8,13 +8,9 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 
-	"github.com/pkg/errors"
-
 	gojira "github.com/andygrunwald/go-jira"
-	"github.com/dgrijalva/jwt-go"
 	ajwt "github.com/rbriski/atlassian-jwt"
 	oauth2_jira "golang.org/x/oauth2/jira"
 
@@ -25,7 +21,7 @@ import (
 
 const Type = "cloud"
 
-type JiraCloudUpstream struct {
+type Upstream struct {
 	upstream.BasicUpstream
 
 	// Initially a new instance is created with an expiration time. The
@@ -39,12 +35,12 @@ type JiraCloudUpstream struct {
 	RawAtlassianSecurityContext string
 
 	// Runtime data, not marshalled to JSON, not saved to the Store
-	atlassianSecurityContext *AtlassianSecurityContext
+	atlassianSecurityContext *atlassianSecurityContext
 }
 
-const UserLandingPageKey = "user-redirect"
+const userLandingPageKey = "user-redirect"
 
-type AtlassianSecurityContext struct {
+type atlassianSecurityContext struct {
 	Key            string `json:"key"`
 	ClientKey      string `json:"clientKey"`
 	SharedSecret   string `json:"sharedSecret"`
@@ -58,7 +54,7 @@ type AtlassianSecurityContext struct {
 }
 
 func newUpstream(upStore upstream.Store, installed bool, rawASC string,
-	asc *AtlassianSecurityContext) upstream.Upstream {
+	asc *atlassianSecurityContext) upstream.Upstream {
 
 	conf := upstream.UpstreamConfig{
 		StoreConfig: *(upStore.Config()),
@@ -67,7 +63,7 @@ func newUpstream(upStore upstream.Store, installed bool, rawASC string,
 		Type:        Type,
 	}
 
-	return &JiraCloudUpstream{
+	return &Upstream{
 		BasicUpstream:               upStore.MakeBasicUpstream(conf),
 		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
@@ -75,7 +71,7 @@ func newUpstream(upStore upstream.Store, installed bool, rawASC string,
 	}
 }
 
-func (up JiraCloudUpstream) GetDisplayDetails() map[string]string {
+func (up Upstream) GetDisplayDetails() map[string]string {
 	if !up.Installed {
 		return map[string]string{
 			"Setup": "In progress",
@@ -90,7 +86,7 @@ func (up JiraCloudUpstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up JiraCloudUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
+func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -103,27 +99,27 @@ func (up JiraCloudUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	if err != nil {
 		return "", err
 	}
-	token, err := up.NewAuthToken(mattermostUserId, secret)
+	token, err := up.newAuthToken(mattermostUserId, secret)
 	if err != nil {
 		return "", err
 	}
 
 	v := url.Values{}
-	v.Add(ArgMMToken, token)
+	v.Add(argMMToken, token)
 	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
 		up.Config().URL,
 		up.Config().URL,
 		up.atlassianSecurityContext.Key,
-		UserLandingPageKey,
+		userLandingPageKey,
 		v.Encode(),
 	), nil
 }
 
-func (up JiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
+func (up Upstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
 
 	oauth2Conf := oauth2_jira.Config{
 		BaseURL: up.Config().URL,
-		Subject: user.UpstreamId(),
+		Subject: user.UpstreamUserId(),
 	}
 
 	oauth2Conf.Config.ClientID = up.atlassianSecurityContext.OAuthClientId
@@ -138,7 +134,7 @@ func (up JiraCloudUpstream) GetClient(pluginURL string, user upstream.User) (*go
 }
 
 // Creates a "bot" client with a JWT
-func (up JiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
+func (up Upstream) getClientForServer() (*gojira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          up.atlassianSecurityContext.Key,
 		ClientKey:    up.atlassianSecurityContext.ClientKey,
@@ -149,42 +145,20 @@ func (up JiraCloudUpstream) getClientForServer() (*gojira.Client, error) {
 	return gojira.NewClient(jwtConf.Client(), jwtConf.BaseURL)
 }
 
-func (up JiraCloudUpstream) JWTFromHTTPRequest(r *http.Request) (
-	token *jwt.Token, rawToken string, status int, err error) {
-
-	tokenString := r.FormValue("jwt")
-	if tokenString == "" {
-		return nil, "", http.StatusBadRequest, errors.New("no jwt found in the HTTP request")
-	}
-
-	token, err = jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.Errorf(
-				"unsupported signing method: %v", token.Header["alg"])
-		}
-		// HMAC secret is a []byte
-		return []byte(up.atlassianSecurityContext.SharedSecret), nil
-	})
-	if err != nil || !token.Valid {
-		return nil, "", http.StatusUnauthorized, errors.WithMessage(err, "failed to validatte JWT")
-	}
-
-	return token, tokenString, http.StatusOK, nil
-}
-
 type unmarshaller struct{}
 
-var Unmarshaller unmarshaller
+// Unmarshaller unmarshals Jira Cloud entities from JSON
+var Unmarshaller upstream.Unmarshaller = unmarshaller{}
 
 func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
-	up := JiraCloudUpstream{}
+	up := Upstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
 	up.BasicUpstream = basicUp
 
-	asc := AtlassianSecurityContext{}
+	asc := atlassianSecurityContext{}
 	err = json.Unmarshal([]byte(up.RawAtlassianSecurityContext), &asc)
 	up.atlassianSecurityContext = &asc
 

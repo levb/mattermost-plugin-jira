@@ -11,7 +11,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 )
@@ -22,7 +22,7 @@ type jiraServerUser struct {
 	Oauth1AccessSecret string `json:",omitempty"`
 }
 
-func (serverUp *JiraServerUpstream) CompleteOAuth1(api plugin.API, ots kvstore.OneTimeStore,
+func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStore,
 	r *http.Request, pluginURL, mattermostUserId string) (upstream.User, int, error) {
 
 	requestToken, verifier, err := oauth1.ParseAuthorizationCallback(r)
@@ -41,7 +41,7 @@ func (serverUp *JiraServerUpstream) CompleteOAuth1(api plugin.API, ots kvstore.O
 		return nil, http.StatusUnauthorized, errors.New("request token mismatch")
 	}
 
-	oauth1Config, err := serverUp.GetOAuth1Config(pluginURL)
+	oauth1Config, err := serverUp.getOAuth1Config(pluginURL)
 	if err != nil {
 		return nil, http.StatusInternalServerError, errors.WithMessage(err,
 			"failed to obtain oauth1 config")
@@ -74,7 +74,7 @@ func (serverUp *JiraServerUpstream) CompleteOAuth1(api plugin.API, ots kvstore.O
 	user.User.JiraUser = jira.JiraUser(*juser)
 	user.User.BasicUser = upstream.NewBasicUser(mattermostUserId, juser.Key)
 
-	err = lib.StoreUserNotify(api, serverUp, user)
+	err = proxy.StoreUserNotify(api, serverUp, user)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}

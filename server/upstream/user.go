@@ -4,9 +4,9 @@
 package upstream
 
 type User interface {
-	MattermostId() string
+	MattermostUserId() string
 	MattermostDisplayName() string
-	UpstreamId() string
+	UpstreamUserId() string
 	UpstreamDisplayName() string
 	Settings() *UserSettings
 }
@@ -16,14 +16,14 @@ type UserSettings struct {
 }
 
 type BasicUser struct {
-	MattermostUserId string       `json:"mattermost_user_id"`
-	UpstreamUserId   string       `json:"upstream_user_id"`
-	UserSettings     UserSettings `json:"settings"`
+	MUserId      string       `json:"mattermost_user_id"`
+	UUserId      string       `json:"upstream_user_id"`
+	UserSettings UserSettings `json:"settings"`
 }
 
-func (u BasicUser) MattermostId() string          { return u.MattermostUserId }
+func (u BasicUser) MattermostUserId() string      { return u.MUserId }
 func (u BasicUser) MattermostDisplayName() string { return "" }
-func (u BasicUser) UpstreamId() string            { return u.UpstreamUserId }
+func (u BasicUser) UpstreamUserId() string        { return u.UUserId }
 func (u BasicUser) UpstreamDisplayName() string   { return "" }
 func (u *BasicUser) Settings() *UserSettings      { return &u.UserSettings }
 
@@ -33,8 +33,8 @@ var DefaultUserSettings = UserSettings{
 
 func NewBasicUser(mattermostUserId, upstreamUserId string) BasicUser {
 	return BasicUser{
-		MattermostUserId: mattermostUserId,
-		UpstreamUserId:   upstreamUserId,
-		UserSettings:     DefaultUserSettings,
+		MUserId:      mattermostUserId,
+		UUserId:      upstreamUserId,
+		UserSettings: DefaultUserSettings,
 	}
 }

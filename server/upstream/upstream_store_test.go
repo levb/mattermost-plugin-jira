@@ -47,46 +47,48 @@ type testUser2 struct {
 	B string
 }
 
-func unmarshalUser(data []byte, userRef interface{}) (User, error) {
-	err := json.Unmarshal(data, &userRef)
-	if err != nil {
-		return nil, err
-	}
-	return userRef.(User), nil
-}
-
-func unmarshalUpstream(data []byte, storeConf StoreConfig, upstreamRef interface{}) (Upstream, error) {
-	err := json.Unmarshal(data, &upstreamRef)
-	if err != nil {
-		return nil, err
-	}
-	up := upstreamRef.(Upstream)
-	up.Config().StoreConfig = storeConf
-	return up, nil
-}
-
 type unmarshaller1 struct{}
 
-func (_ unmarshaller1) UnmarshalUser(data []byte) (User, error) {
+func (_ unmarshaller1) UnmarshalUser(data []byte, mattermostUserId string) (User, error) {
 	u := testUser1{}
-	return unmarshalUser(data, &u)
+	err := json.Unmarshal(data, &u)
+	if err != nil {
+		return nil, err
+	}
+	u.MUserId = mattermostUserId
+	return &u, nil
 }
 
-func (_ unmarshaller1) UnmarshalUpstream(data []byte, storeConf StoreConfig) (Upstream, error) {
+func (_ unmarshaller1) UnmarshalUpstream(data []byte, basicUp BasicUpstream) (Upstream, error) {
 	up := testUpstream1{}
-	return unmarshalUpstream(data, storeConf, &up)
+	err := json.Unmarshal(data, &up)
+	if err != nil {
+		return nil, err
+	}
+	up.BasicUpstream = basicUp
+	return &up, nil
 }
 
 type unmarshaller2 struct{}
 
-func (_ unmarshaller2) UnmarshalUser(data []byte) (User, error) {
+func (_ unmarshaller2) UnmarshalUser(data []byte, mattermostUserId string) (User, error) {
 	u := testUser2{}
-	return unmarshalUser(data, &u)
+	err := json.Unmarshal(data, &u)
+	if err != nil {
+		return nil, err
+	}
+	u.MUserId = mattermostUserId
+	return &u, nil
 }
 
-func (_ unmarshaller2) UnmarshalUpstream(data []byte, storeConf StoreConfig) (Upstream, error) {
+func (_ unmarshaller2) UnmarshalUpstream(data []byte, basicUp BasicUpstream) (Upstream, error) {
 	up := testUpstream2{}
-	return unmarshalUpstream(data, storeConf, &up)
+	err := json.Unmarshal(data, &up)
+	if err != nil {
+		return nil, err
+	}
+	up.BasicUpstream = basicUp
+	return &up, nil
 }
 
 func setupUpstreamStoreWith2(underlying kvstore.KVStore) (Store, Upstream, Upstream) {

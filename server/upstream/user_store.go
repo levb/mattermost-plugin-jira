@@ -13,14 +13,14 @@ import (
 )
 
 func (up BasicUpstream) StoreUser(u User) error {
-	mmkey := up.userkey(u.MattermostId())
-	upkey := up.userkey(u.UpstreamId())
+	mmkey := up.userkey(u.MattermostUserId())
+	upkey := up.userkey(u.UpstreamUserId())
 
 	err := kvstore.StoreJSON(up.kv, mmkey, u)
 	if err != nil {
 		return err
 	}
-	err = kvstore.StoreJSON(up.kv, upkey, u.MattermostId())
+	err = kvstore.StoreJSON(up.kv, upkey, u.MattermostUserId())
 	if err != nil {
 		return err
 	}
@@ -41,9 +41,9 @@ func (up BasicUpstream) LoadUser(mattermostUserId string) (User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if u.MattermostId() != mattermostUserId {
+	if u.MattermostUserId() != mattermostUserId {
 		return nil, errors.Errorf(
-			"stored user id %q did not match the current user id: %q", u.MattermostId(), mattermostUserId)
+			"stored user id %q did not match the current user id: %q", u.MattermostUserId(), mattermostUserId)
 	}
 
 	return u, nil
@@ -60,8 +60,8 @@ func (up BasicUpstream) LoadMattermostUserId(upstreamUserId string) (string, err
 }
 
 func (up BasicUpstream) DeleteUser(u User) error {
-	mmkey := up.userkey(u.MattermostId())
-	upkey := up.userkey(u.UpstreamId())
+	mmkey := up.userkey(u.MattermostUserId())
+	upkey := up.userkey(u.UpstreamUserId())
 	err := up.kv.Delete(mmkey)
 	if err != nil {
 		return err

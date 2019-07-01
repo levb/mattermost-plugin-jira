@@ -22,15 +22,21 @@ type Context struct {
 	config.Context `json:"-"`
 
 	PluginContext *plugin.Context
-	Upstream      upstream.Upstream
-	User          upstream.User
-	// TODO proxy via an `upstream.Client`?
-	JiraClient       *jira.Client
-	LogErr           error
+	LogErr        error
+
 	MattermostUser   *model.User
 	MattermostUserId string
-	UpstreamJWT      *jwt.Token
-	UpstreamRawJWT   string
+
+	Upstream               upstream.Upstream
+	UpstreamJWT            *jwt.Token
+	UpstreamJWTDisplayName string
+	UpstreamJWTUserKey     string
+	UpstreamJWTUsername    string
+	UpstreamRawJWT         string
+	UpstreamUser           upstream.User
+
+	// TODO proxy via an `upstream.Client`?
+	JiraClient *jira.Client
 }
 
 type Action interface {

@@ -1,13 +1,9 @@
-package lib
+package proxy
 
 import (
-
-	// "github.com/andygrunwald/go-jira"
-
+	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
-
-	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
 const (
@@ -43,7 +39,7 @@ func StoreUserNotify(api plugin.API, up upstream.Upstream, u upstream.User) erro
 		map[string]interface{}{
 			"is_connected": true,
 		},
-		&model.WebsocketBroadcast{UserId: u.MattermostId()},
+		&model.WebsocketBroadcast{UserId: u.MattermostUserId()},
 	)
 
 	return nil
@@ -60,7 +56,7 @@ func DeleteUserNotify(api plugin.API, up upstream.Upstream, u upstream.User) err
 		map[string]interface{}{
 			"is_connected": false,
 		},
-		&model.WebsocketBroadcast{UserId: u.MattermostId()},
+		&model.WebsocketBroadcast{UserId: u.MattermostUserId()},
 	)
 
 	return nil

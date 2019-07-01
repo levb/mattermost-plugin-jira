@@ -9,15 +9,14 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/pkg/errors"
-
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
+	"github.com/pkg/errors"
 )
 
-func ProcessInstalled(
+func processInstalled(
 	api plugin.API,
 	upstore upstream.Store,
 	authTokenSecret []byte,
@@ -28,7 +27,7 @@ func ProcessInstalled(
 		return http.StatusBadRequest, errors.WithMessage(err, "failed to read request")
 	}
 
-	var asc AtlassianSecurityContext
+	var asc atlassianSecurityContext
 	err = json.Unmarshal(data, &asc)
 	if err != nil {
 		return http.StatusBadRequest, errors.WithMessage(err, "failed to unmarshal request")
@@ -45,7 +44,7 @@ func ProcessInstalled(
 		return http.StatusInternalServerError,
 			errors.WithMessagef(err, "failed to load Jira upstream %q", asc.BaseURL)
 	}
-	cloudUp, ok := up.(*JiraCloudUpstream)
+	cloudUp, ok := up.(*Upstream)
 	if !ok {
 		return http.StatusInternalServerError,
 			errors.Errorf("expected a Jira Cloud upstream, got %T", up)
@@ -62,7 +61,7 @@ func ProcessInstalled(
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	err = lib.StoreCurrentUpstreamNotify(api, upstore, up)
+	err = proxy.StoreCurrentUpstreamNotify(api, upstore, up)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

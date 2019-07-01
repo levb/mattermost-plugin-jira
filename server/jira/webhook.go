@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -35,8 +35,6 @@ const (
 	WebhookEventUpdatedStatus
 	WebhookEventUpdatedSummary
 )
-
-const RouteIncomingWebhook = "/webhook"
 
 const (
 	PostTypeComment  = "custom_jira_comment"
@@ -118,7 +116,7 @@ func (wh *webhook) PostNotifications(api plugin.API, up upstream.Upstream,
 			return nil, http.StatusOK, nil
 		}
 
-		post, err := lib.CreateBotDMPost(
+		post, err := proxy.CreateBotDMPost(
 			api, up, botUserId, mattermostUserId,
 			notification.message, notification.postType)
 		if err != nil {
@@ -153,5 +151,5 @@ func GetWebhookURL(api plugin.API, pluginURL, webhookSecret string, teamId, chan
 	v.Add("secret", secret)
 	v.Add("team", team.Name)
 	v.Add("channel", channel.Name)
-	return pluginURL + "/" + RouteIncomingWebhook + "?" + v.Encode(), nil
+	return pluginURL + "/" + routeWebhook + "?" + v.Encode(), nil
 }

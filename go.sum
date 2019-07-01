@@ -68,6 +68,7 @@ github.com/mattermost/mattermost-server v5.6.5+incompatible h1:3GOnGVeecQ8o7kAQq
 github.com/mattermost/mattermost-server v5.6.5+incompatible/go.mod h1:5L6MjAec+XXQwMIt791Ganu45GKsSiM+I0tLR9wUj8Y=
 github.com/mattermost/mattermost-server v5.10.1+incompatible h1:bSwuCGIOuKGVCxAMsVeEnBP8J2qxNL4/ik8ibDq+Q9U=
 github.com/mattermost/mattermost-server v5.10.1+incompatible/go.mod h1:5L6MjAec+XXQwMIt791Ganu45GKsSiM+I0tLR9wUj8Y=
+github.com/mattermost/mattermost-server v5.11.1+incompatible h1:LPzKY0+2Tic/ik67qIg6VrydRCgxNXZQXOeaiJ2rMBY=
 github.com/mattermost/viper v0.0.0-20181112161711-f99c30686b86 h1:7/e3ksOHdNIdjBwKeM6acMWNkdLjwPM9MllJeLdfheY=
 github.com/mattermost/viper v0.0.0-20181112161711-f99c30686b86/go.mod h1:KAa5zVT6NsZa4/CLpDkT/A0LbI+lVEWMDNSjSHfgFO8=
 github.com/mitchellh/go-testing-interface v1.0.0 h1:fzU/JVNcaqHQEcVFAKeR41fkiLdIPrefOvVG1VZ96U0=

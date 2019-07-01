@@ -1,4 +1,4 @@
-package lib
+package proxy
 
 import (
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"

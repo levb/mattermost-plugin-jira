@@ -1,7 +1,7 @@
 // Copyright (c) 2019-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package command
+package main
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"strconv"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/action/command_action"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/jira"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 )
 
 const helpText = "###### Mattermost Jira Plugin - Slash Command Help\n" +
@@ -31,52 +31,6 @@ const helpText = "###### Mattermost Jira Plugin - Slash Command Help\n" +
 	"* `/jira uninstall server <URL>` - Disconnect Mattermost from a Jira Server or Data Center instance located at <URL>\n" +
 	""
 
-var Router = &action.Router{
-	Before:  action.Script{command_action.LogAction},
-	Default: help,
-
-	// MattermostUserID is set for all commands, so no special "Requir" for it
-	Routes: map[string]*action.Route{
-		"connect":    action.NewRoute(lib.RequireUpstream, connect),
-		"disconnect": action.NewRoute(lib.RequireUpstreamUser, disconnect),
-		"settings/notifications/": action.NewRoute(lib.RequireUpstreamClient, notifications).With(
-			&command_action.Metadata{MinArgc: 1, MaxArgc: 1,
-				ArgNames: []string{"value"}}),
-		"upstream/list": action.NewRoute(lib.RequireMattermostSysAdmin, list),
-		"upstream/select": action.NewRoute(lib.RequireMattermostSysAdmin, selectUpstream).With(
-			&command_action.Metadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
-		"upstream/delete": action.NewRoute(lib.RequireMattermostSysAdmin, deleteUpstream).With(
-			&command_action.Metadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"n"}}),
-	},
-	// 	RequireMattermostSysAdmin,
-	// "transition": {
-	// 	Handler:  commandTransition,
-	// 	Metadata: &action.CommandMetadata{MinArgc: 2, MaxArgc: -1, ArgNames: []string{"key"}},
-	// },
-	// "install/server": {
-	// 	Handler:  commandInstallServer,
-	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
-	// },
-	// "install/cloud": {
-	// 	Handler:  commandInstallCloud,
-	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
-	// },
-	// "uninstall/server": {
-	// 	Handler:  commandUninstallServer,
-	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
-	// },
-	// "uninstall/cloud": {
-	// 	Handler:  commandUninstallCloud,
-	// 	Metadata: &action.CommandMetadata{MinArgc: 1, MaxArgc: 1, ArgNames: []string{"url"}},
-	// },
-	// // used for debugging, uncomment if needed
-	// "webhook":         commandWebhookURL,
-}
-
-func help(a action.Action) error {
-	return a.RespondPrintf(helpText)
-}
-
 func connect(a action.Action) error {
 	ac := a.Context()
 	redirectURL, err := ac.Upstream.GetUserConnectURL(ac.OneTimeStore, ac.PluginURL, ac.MattermostUserId)
@@ -88,12 +42,12 @@ func connect(a action.Action) error {
 
 func disconnect(a action.Action) error {
 	ac := a.Context()
-	err := lib.DeleteUserNotify(ac.API, ac.Upstream, ac.User)
+	err := proxy.DeleteUserNotify(ac.API, ac.Upstream, ac.UpstreamUser)
 	if err != nil {
 		return a.RespondError(0, err, "Could not complete the **disconnection** request")
 	}
 	return a.RespondPrintf("You have successfully disconnected your Jira account (**%s**).",
-		ac.User.UpstreamDisplayName())
+		ac.UpstreamUser.UpstreamDisplayName())
 }
 
 const (
@@ -114,7 +68,7 @@ func notifications(a action.Action) error {
 		return a.RespondPrintf(
 			"`/jira settings notifications [value]`\nInvalid value %q. Accepted values are: `on` or `off`.", valueStr)
 	}
-	err := lib.StoreUserSettingsNotifications(ac.Upstream, ac.User, value)
+	err := jira.StoreUserSettingsNotifications(ac.Upstream, ac.UpstreamUser, value)
 	if err != nil {
 		return a.RespondError(0, err)
 	}

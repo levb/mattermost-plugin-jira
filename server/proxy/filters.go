@@ -1,4 +1,4 @@
-package lib
+package proxy
 
 import (
 	"net/http"
@@ -6,33 +6,7 @@ import (
 	"github.com/mattermost/mattermost-server/model"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
-	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
 )
-
-func RequireHTTPGet(a action.Action) error {
-	return requireHTTPMethod(a, http.MethodGet)
-}
-
-func RequireHTTPPost(a action.Action) error {
-	return requireHTTPMethod(a, http.MethodPost)
-}
-
-func RequireHTTPPut(a action.Action) error {
-	return requireHTTPMethod(a, http.MethodPut)
-}
-
-func RequireHTTPDelete(a action.Action) error {
-	return requireHTTPMethod(a, http.MethodDelete)
-}
-
-func requireHTTPMethod(a action.Action, method string) error {
-	r := http_action.Request(a)
-	if r.Method != method {
-		return a.RespondError(http.StatusMethodNotAllowed, nil,
-			"method %s is not allowed, must be %s", r.Method, method)
-	}
-	return nil
-}
 
 func RequireMattermostUserId(a action.Action) error {
 	ac := a.Context()
@@ -68,23 +42,18 @@ func RequireMattermostSysAdmin(a action.Action) error {
 	if err != nil {
 		return err
 	}
-
 	ac := a.Context()
 
 	if !ac.MattermostUser.IsInRole(model.SYSTEM_ADMIN_ROLE_ID) {
 		return a.RespondError(http.StatusUnauthorized, nil,
 			"reserverd for system administrators")
 	}
-	// if !ac.API.HasPermissionTo(ac.MattermostUserId, model.PERMISSION_MANAGE_SYSTEM) {
-	// 	return a.RespondError(http.StatusForbidden, nil, "forbidden")
-	// }
-
 	return nil
 }
 
 func RequireUpstreamUser(a action.Action) error {
 	ac := a.Context()
-	if ac.User != nil {
+	if ac.UpstreamUser != nil {
 		return nil
 	}
 	err := action.Script{RequireMattermostUserId, RequireUpstream}.Run(a)
@@ -96,8 +65,8 @@ func RequireUpstreamUser(a action.Action) error {
 	if err != nil {
 		return a.RespondError(http.StatusUnauthorized, err)
 	}
-	a.Debugf("action: loaded Jira user %q", user.UpstreamDisplayName())
-	ac.User = user
+	a.Debugf("action: loaded upstream user %q", user.UpstreamDisplayName())
+	ac.UpstreamUser = user
 	return nil
 }
 
@@ -114,25 +83,6 @@ func RequireUpstream(a action.Action) error {
 
 	// Important: overwrite the default UserStore with that where
 	// the keys are prefixed with the instance URL
-	a.Debugf("action: loaded Jira instance %q", up.Config().Key)
-	return nil
-}
-
-func RequireUpstreamClient(a action.Action) error {
-	ac := a.Context()
-	if ac.JiraClient != nil {
-		return nil
-	}
-	err := action.Script{RequireUpstream, RequireUpstreamUser}.Run(a)
-	if err != nil {
-		return err
-	}
-
-	client, err := ac.Upstream.GetClient(ac.PluginId, ac.User)
-	if err != nil {
-		return a.RespondError(http.StatusInternalServerError, err)
-	}
-	ac.JiraClient = client
-	a.Debugf("action: loaded Jira client for %q", ac.User.UpstreamDisplayName())
+	a.Debugf("action: loaded upstream %q", up.Config().Key)
 	return nil
 }

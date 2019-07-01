@@ -9,34 +9,32 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/lib"
+	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
 const authTokenTTL = 15 * time.Minute
 
-const ArgMMToken = "mm_token"
-
-type AuthToken struct {
+type authToken struct {
 	MattermostUserID string    `json:"mattermost_user_id,omitempty"`
 	Secret           string    `json:"secret,omitempty"`
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (up JiraCloudUpstream) NewAuthToken(mattermostUserID,
+func (up Upstream) newAuthToken(mattermostUserID,
 	secret string) (returnToken string, returnErr error) {
 
-	t := AuthToken{
+	t := authToken{
 		MattermostUserID: mattermostUserID,
 		Secret:           secret,
 		Expires:          time.Now().Add(authTokenTTL),
@@ -47,17 +45,20 @@ func (up JiraCloudUpstream) NewAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
+	fmt.Printf("<><> NewAuthToken 1 %s\n", string(jsonBytes))
+	fmt.Printf("<><> NewAuthToken 2 %s\n", string(up.Config().AuthTokenSecret))
 	encrypted, err := encrypt(jsonBytes, up.Config().AuthTokenSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
+	fmt.Printf("<><> NewAuthToken 3 %v\n", len(encrypted))
 
 	return encode(encrypted)
 }
 
-func ProcessUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore.OneTimeStore, 
-	tokenUser upstream.User, tokenSecret, mattermostUserId string) (int, error) {
-	up := cloudup.(*JiraCloudUpstream)
+func processUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore.OneTimeStore,
+	tokenUser *jira.User, tokenSecret string, mattermostUserId string) (int, error) {
+	up := cloudup.(*Upstream)
 
 	storedSecret, err := ots.Load(mattermostUserId)
 	if err != nil {
@@ -67,7 +68,7 @@ func ProcessUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore
 		return http.StatusUnauthorized, errors.New("this link has already been used")
 	}
 
-	err = lib.StoreUserNotify(api, up, tokenUser)
+	err = proxy.StoreUserNotify(api, up, tokenUser)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -75,10 +76,10 @@ func ProcessUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore
 	return http.StatusOK, nil
 }
 
-func ProcessUserDisconnected(api plugin.API, cloudup upstream.Upstream, user upstream.User) (int, error) {
-	up := cloudup.(*JiraCloudUpstream)
+func processUserDisconnected(api plugin.API, cloudup upstream.Upstream, user upstream.User) (int, error) {
+	up := cloudup.(*Upstream)
 
-	err := lib.DeleteUserNotify(api, up, user)
+	err := proxy.DeleteUserNotify(api, up, user)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -86,50 +87,8 @@ func ProcessUserDisconnected(api plugin.API, cloudup upstream.Upstream, user ups
 	return http.StatusOK, nil
 }
 
-func ParseTokens(cloudup upstream.Upstream, upstreamJWT *jwt.Token,
-	mmtoken, mattermostUserId string) (upstream.User, string, int, error) {
-	up := cloudup.(*JiraCloudUpstream)
-
-	claims, ok := upstreamJWT.Claims.(jwt.MapClaims)
-	if !ok {
-		return nil, "", http.StatusBadRequest, errors.New("invalid JWT claims")
-	}
-	contextClaim, ok := claims["context"].(map[string]interface{})
-	if !ok {
-		return nil, "", http.StatusBadRequest, errors.New("invalid JWT claim context")
-	}
-	userProps, ok := contextClaim["user"].(map[string]interface{})
-	if !ok {
-		return nil, "", http.StatusBadRequest, errors.New("invalid JWT: no user data")
-	}
-	userKey, _ := userProps["userKey"].(string)
-	username, _ := userProps["username"].(string)
-	displayName, _ := userProps["displayName"].(string)
-	juser := jira.JiraUser{
-		Key:         userKey,
-		Name:        username,
-		DisplayName: displayName,
-	}
-
-	requestedUserId, secret, err := up.parseAuthToken(mmtoken)
-	if err != nil {
-		return nil, "", http.StatusUnauthorized, err
-	}
-
-	if mattermostUserId != requestedUserId {
-		return nil, "", http.StatusUnauthorized, errors.New("not authorized, user id does not match link")
-	}
-
-	user := jira.User{
-		BasicUser: upstream.NewBasicUser(mattermostUserId, userKey),
-		JiraUser:  juser,
-	}
-
-	return &user, secret, http.StatusOK, nil
-}
-
-func (up JiraCloudUpstream) parseAuthToken(encoded string) (string, string, error) {
-	t := AuthToken{}
+func (up Upstream) parseAuthToken(encoded string) (string, string, error) {
+	t := authToken{}
 	err := func() error {
 		decoded, err := decode(encoded)
 		if err != nil {
@@ -141,11 +100,14 @@ func (up JiraCloudUpstream) parseAuthToken(encoded string) (string, string, erro
 			return err
 		}
 
+		fmt.Printf("<><> jsonBytes %v\n", string(jsonBytes))
+
 		err = json.Unmarshal(jsonBytes, &t)
 		if err != nil {
 			return err
 		}
 
+		fmt.Printf("<><> t %+v\n", t)
 		if t.Expires.Before(time.Now()) {
 			return errors.New("Expired token")
 		}
