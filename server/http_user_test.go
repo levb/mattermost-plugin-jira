@@ -14,37 +14,11 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/context"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/teststore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
-	"github.com/mattermost/mattermost-server/model"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 	"github.com/mattermost/mattermost-server/plugin/plugintest"
-	"github.com/mattermost/mattermost-server/plugin/plugintest/mock"
 )
-
-func setupTestPlugin(t *testing.T, conf context.Config) *plugin.Plugin {
-	kv := kvstore.NewMockedStore()
-	api := &plugintest.API{}
-	p := &plugin.Plugin{}
-	p.SetAPI(api)
-
-	api.On("GetUserByUsername", mock.AnythingOfTypeArgument("string")).Return(&model.User{}, nil)
-	api.On("LogDebug",
-		mock.AnythingOfTypeArgument("string")).Return(nil)
-	api.On("LogInfo",
-		mock.AnythingOfTypeArgument("string")).Return(nil)
-
-	f, err := plugin.MakeContext(p.API, kv, teststore.Unmarshallers, "pluginID", "version-string", "..")
-	require.Nil(t, err)
-	p.UpdateContext(f)
-	p.UpdateContext(func(c *context.Context) {
-		plugin.RefreshContext(p.API, c, context.Config{}, conf, "site.url", "")
-	})
-
-	return p
-}
 
 func TestGetUserInfo(t *testing.T) {
 
@@ -88,7 +62,8 @@ func TestGetUserInfo(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			p := setupTestPlugin(t, context.Config{
+			api := &plugintest.API{}
+			p := teststore.SetupTestPlugin(t, api, context.Config{
 				EnableJiraUI: true,
 			})
 			if !tc.rawStore {
@@ -130,7 +105,9 @@ func TestGetSettingsInfo(t *testing.T) {
 			enabled:            true,
 			mattermostUserId:   teststore.UserA_MattermostId,
 			expectedStatusCode: http.StatusOK,
-			expectedResponse:   jira.GetSettingsInfoResponse{true},
+			expectedResponse: jira.GetSettingsInfoResponse{
+				UIEnabled: true,
+			},
 		},
 		"user A disabled": {
 			enabled:            false,
@@ -140,7 +117,8 @@ func TestGetSettingsInfo(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			p := setupTestPlugin(t, context.Config{
+			api := &plugintest.API{}
+			p := teststore.SetupTestPlugin(t, api, context.Config{
 				EnableJiraUI: tc.enabled,
 			})
 			teststore.UpstreamStore_2Upstreams2Users(t, p.GetContext().UpstreamStore)

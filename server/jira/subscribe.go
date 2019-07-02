@@ -20,7 +20,7 @@ const (
 	JIRA_WEBHOOK_EVENT_ISSUE_DELETED = "jira:issue_deleted"
 )
 
-const JiraSubscriptionsKey = "jirasub"
+const SubscriptionsKey = "jirasub"
 
 type ChannelSubscription struct {
 	Id        string              `json:"id"`
@@ -62,7 +62,7 @@ func (s *ChannelSubscriptions) remove(sub *ChannelSubscription) {
 	}
 }
 
-func (s *ChannelSubscriptions) add(newSubscription *ChannelSubscription) {
+func (s *ChannelSubscriptions) Add(newSubscription *ChannelSubscription) {
 	s.ById[newSubscription.Id] = *newSubscription
 	s.IdByChannelId[newSubscription.ChannelId] = append(s.IdByChannelId[newSubscription.ChannelId], newSubscription.Id)
 	for _, event := range newSubscription.Filters["events"] {
@@ -161,7 +161,7 @@ func getChannelsSubscribed(api plugin.API, jwh *JiraWebhook) ([]string, error) {
 }
 
 func getSubscriptions(api plugin.API) (*Subscriptions, error) {
-	data, err := api.KVGet(JiraSubscriptionsKey)
+	data, err := api.KVGet(SubscriptionsKey)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func getChannelSubscription(api plugin.API, subscriptionId string) (*ChannelSubs
 }
 
 func removeChannelSubscription(api plugin.API, subscriptionId string) error {
-	return atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
+	return atomicModify(api, SubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
 		subs, err := subscriptionsFromJson(initialBytes)
 		if err != nil {
 			return nil, err
@@ -206,14 +206,14 @@ func removeChannelSubscription(api plugin.API, subscriptionId string) error {
 }
 
 func addChannelSubscription(api plugin.API, newSubscription *ChannelSubscription) error {
-	return atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
+	return atomicModify(api, SubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
 		subs, err := subscriptionsFromJson(initialBytes)
 		if err != nil {
 			return nil, err
 		}
 
 		newSubscription.Id = model.NewId()
-		subs.Channel.add(newSubscription)
+		subs.Channel.Add(newSubscription)
 
 		modifiedBytes, marshalErr := json.Marshal(&subs)
 		if marshalErr != nil {
@@ -332,7 +332,7 @@ func editChannelSubscription(api plugin.API, mattermostUserId string, body io.Re
 			errors.New("Not a member of the channel specified")
 	}
 
-	err = atomicModify(api, JiraSubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
+	err = atomicModify(api, SubscriptionsKey, func(initialBytes []byte) ([]byte, error) {
 		subs, moderr := subscriptionsFromJson(initialBytes)
 		if moderr != nil {
 			return nil, moderr
@@ -343,7 +343,7 @@ func editChannelSubscription(api plugin.API, mattermostUserId string, body io.Re
 			return nil, errors.New("Existing subscription does not exist.")
 		}
 		subs.Channel.remove(&oldSub)
-		subs.Channel.add(&subscription)
+		subs.Channel.Add(&subscription)
 
 		modifiedBytes, moderr := json.Marshal(&subs)
 		if moderr != nil {

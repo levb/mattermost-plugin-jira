@@ -7,7 +7,13 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/context"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
+	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
+	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/plugin/plugintest"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -135,4 +141,25 @@ func UpstreamStore_2Upstreams2Users(t *testing.T, s upstream.Store) {
 	user2 := upstream.NewBasicUser(UserB_MattermostId, UserB_UpstreamId)
 	err = up2.StoreUser(user2)
 	require.Nil(t, err)
+}
+
+func SetupTestPlugin(t *testing.T, api *plugintest.API, conf context.Config) *plugin.Plugin {
+	kv := kvstore.NewMockedStore()
+	p := &plugin.Plugin{}
+	p.SetAPI(api)
+
+	api.On("GetUserByUsername", mock.AnythingOfTypeArgument("string")).Return(&model.User{}, nil)
+	api.On("LogDebug",
+		mock.AnythingOfTypeArgument("string")).Return(nil)
+	api.On("LogInfo",
+		mock.AnythingOfTypeArgument("string")).Return(nil)
+
+	f, err := plugin.MakeContext(p.API, kv, Unmarshallers, "pluginID", "version-string", "..")
+	require.Nil(t, err)
+	p.UpdateContext(f)
+	p.UpdateContext(func(c *context.Context) {
+		plugin.RefreshContext(p.API, c, context.Config{}, conf, "site.url", "")
+	})
+
+	return p
 }
