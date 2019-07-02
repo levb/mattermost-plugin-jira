@@ -11,7 +11,7 @@ import (
 	"github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/config"
+	"github.com/mattermost/mattermost-plugin-jira/server/context"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
@@ -19,7 +19,7 @@ import (
 
 // Context has pre-computed values for an action
 type Context struct {
-	config.Context `json:"-"`
+	*context.Context `json:"-"`
 
 	PluginContext *plugin.Context
 	LogErr        error
@@ -68,15 +68,15 @@ type actionHandler struct {
 }
 
 type action struct {
-	context Context
+	context *Context
 }
 
 var _ Action = (*action)(nil)
 
-func NewAction(router *Router, context config.Context, pc *plugin.Context, mattermostUserId string) Action {
+func NewAction(router *Router, context context.Context, pc *plugin.Context, mattermostUserId string) Action {
 	return &action{
-		context: Context{
-			Context:          context,
+		context: &Context{
+			Context:          &context,
 			PluginContext:    pc,
 			MattermostUserId: mattermostUserId,
 		},
@@ -84,7 +84,7 @@ func NewAction(router *Router, context config.Context, pc *plugin.Context, matte
 }
 
 func (a *action) Context() *Context {
-	return &a.context
+	return a.context
 }
 
 func (a action) Debugf(f string, args ...interface{}) {

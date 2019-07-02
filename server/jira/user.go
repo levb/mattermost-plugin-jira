@@ -20,7 +20,7 @@ import (
 type JiraUser jira.User
 
 type User struct {
-	upstream.BasicUser
+	*upstream.BasicUser
 	JiraUser
 }
 
@@ -86,6 +86,16 @@ func getUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoRes
 		resp.Settings = *u.Settings()
 	}
 	return resp
+}
+
+type GetSettingsInfoResponse struct {
+	UIEnabled bool `json:"ui_enabled"`
+}
+
+func getSettingsInfo(enableJiraUI bool) GetSettingsInfoResponse {
+	return GetSettingsInfoResponse{
+		UIEnabled: enableJiraUI,
+	}
 }
 
 func StoreUserSettingsNotifications(up upstream.Upstream, u upstream.User, value bool) error {

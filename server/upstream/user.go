@@ -31,8 +31,8 @@ var DefaultUserSettings = UserSettings{
 	Notifications: true,
 }
 
-func NewBasicUser(mattermostUserId, upstreamUserId string) BasicUser {
-	return BasicUser{
+func NewBasicUser(mattermostUserId, upstreamUserId string) *BasicUser {
+	return &BasicUser{
 		MUserId:      mattermostUserId,
 		UUserId:      upstreamUserId,
 		UserSettings: DefaultUserSettings,

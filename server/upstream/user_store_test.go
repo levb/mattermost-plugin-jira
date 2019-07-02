@@ -23,11 +23,11 @@ func TestUserStore(t *testing.T) {
 	})
 
 	user1 := testUser1{
-		BasicUser: NewBasicUser(user1MattermostId, user1UpstreamId),
+		BasicUser: *NewBasicUser(user1MattermostId, user1UpstreamId),
 		A:         "aaa",
 	}
 	user2 := testUser2{
-		BasicUser: NewBasicUser(user2MattermostId, user2UpstreamId),
+		BasicUser: *NewBasicUser(user2MattermostId, user2UpstreamId),
 		B:         "bbb",
 	}
 

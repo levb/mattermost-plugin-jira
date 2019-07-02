@@ -12,7 +12,8 @@ import (
 
 const (
 	// APIs for the webapp
-	routeAPIGetUserInfo = "/api/v2/userinfo"
+	routeAPIGetUserInfo     = "/api/v2/userinfo"
+	routeAPIGetSettingsInfo = "/api/v2/settingsinfo"
 
 	// Generic user connect/disconnect endpoints
 	RouteUserConnect    = "/user/connect"
@@ -24,6 +25,11 @@ var userHTTPRoutes = map[string]*action.Route{
 		proxy.RequireHTTPMethod(http.MethodGet),
 		proxy.RequireMattermostUserId,
 		httpGetUserInfo,
+	),
+	routeAPIGetSettingsInfo: action.NewRoute(
+		proxy.RequireHTTPMethod(http.MethodGet),
+		proxy.RequireMattermostUserId,
+		httpGetSettingsInfo,
 	),
 
 	// Generic user connect/disconnect URLs
@@ -76,6 +82,13 @@ func disconnectUser(a action.Action) error {
 func httpGetUserInfo(a action.Action) error {
 	ac := a.Context()
 	resp := getUserInfo(ac.UpstreamStore, ac.MattermostUserId)
+
+	return a.RespondJSON(resp)
+}
+
+func httpGetSettingsInfo(a action.Action) error {
+	ac := a.Context()
+	resp := getSettingsInfo(ac.Config.EnableJiraUI)
 
 	return a.RespondJSON(resp)
 }

@@ -1,10 +1,11 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package config
+package context
 
 import (
 	"crypto/rsa"
+	"sync"
 	"text/template"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
@@ -15,6 +16,9 @@ import (
 // Config is the main plugin configuration, stored in the Mattermost config,
 // and updated via Mattermost system console, CLI, or other means
 type Config struct {
+	// Setting to turn on/off the webapp components of this plugin
+	EnableJiraUI bool `json:"enablejiraui"`
+
 	// Bot username
 	BotUserName string `json:"username"`
 
@@ -49,4 +53,23 @@ type Context struct {
 	// BotUserID caches the bot user ID (derived from the configured UserName)
 	BotUserId  string
 	BotIconURL string
+}
+
+type UpdateableContext struct {
+	context Context
+	lock    sync.RWMutex
+}
+
+func (c *UpdateableContext) GetContext() Context {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.context
+}
+
+func (c *UpdateableContext) UpdateContext(f func(conf *Context)) Context {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	f(&c.context)
+	return c.context
 }
