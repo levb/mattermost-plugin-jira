@@ -191,9 +191,10 @@ func userFromTokens(a action.Action) (*jira.User, string, error) {
 	up := ac.Upstream.(*Upstream)
 
 	juser := jira.JiraUser{
+		AccountID:   ac.UpstreamJWTAccountId,
+		DisplayName: ac.UpstreamJWTDisplayName,
 		Key:         ac.UpstreamJWTUserKey,
 		Name:        ac.UpstreamJWTUsername,
-		DisplayName: ac.UpstreamJWTDisplayName,
 	}
 	requestedUserId, secret, err := up.parseAuthToken(mmtoken)
 	if err != nil {
@@ -205,7 +206,7 @@ func userFromTokens(a action.Action) (*jira.User, string, error) {
 	}
 
 	return &jira.User{
-		BasicUser: upstream.NewBasicUser(ac.MattermostUserId, ac.UpstreamJWTUserKey),
+		BasicUser: *upstream.NewBasicUser(ac.MattermostUserId, ac.UpstreamJWTAccountId),
 		JiraUser:  juser,
 	}, secret, nil
 }

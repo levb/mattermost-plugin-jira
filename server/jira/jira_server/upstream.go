@@ -90,7 +90,7 @@ func (up Upstream) GetClient(pluginURL string,
 		}
 	}()
 
-	user, ok := u.(*jiraServerUser)
+	user, ok := u.(*user)
 	if !ok {
 		return nil, errors.Errorf("expected Jira Server user, got %T", u)
 	}
@@ -158,13 +158,16 @@ type unmarshaller struct{}
 var Unmarshaller upstream.Unmarshaller = unmarshaller{}
 
 func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
-	u := jiraServerUser{}
+	u := user{}
 	err := json.Unmarshal(data, &u)
 	if err != nil {
 		return nil, err
 	}
 	if u.BasicUser.MUserId == "" {
 		u.BasicUser.MUserId = defaultId
+	}
+	if u.BasicUser.UUserId == "" {
+		u.BasicUser.UUserId = u.JiraUser.Name
 	}
 	return &u, nil
 }

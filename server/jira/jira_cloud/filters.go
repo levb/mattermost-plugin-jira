@@ -70,6 +70,7 @@ func RequireJWT(a action.Action) error {
 			"invalid JWT: no user data")
 	}
 
+	ac.UpstreamJWTAccountId, _ = userProps["accountId"].(string)
 	ac.UpstreamJWTUserKey, _ = userProps["userKey"].(string)
 	ac.UpstreamJWTUsername, _ = userProps["username"].(string)
 	ac.UpstreamJWTDisplayName, _ = userProps["displayName"].(string)

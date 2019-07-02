@@ -29,6 +29,7 @@ type Context struct {
 
 	Upstream               upstream.Upstream
 	UpstreamJWT            *jwt.Token
+	UpstreamJWTAccountId   string
 	UpstreamJWTDisplayName string
 	UpstreamJWTUserKey     string
 	UpstreamJWTUsername    string

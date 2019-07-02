@@ -20,8 +20,12 @@ import (
 type JiraUser jira.User
 
 type User struct {
-	*upstream.BasicUser
+	upstream.BasicUser
 	JiraUser
+}
+
+func (u User) UpstreamUserId() string {
+	return u.JiraUser.AccountID
 }
 
 func UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
@@ -32,6 +36,9 @@ func UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
 	}
 	if u.BasicUser.MUserId == "" {
 		u.BasicUser.MUserId = defaultId
+	}
+	if u.BasicUser.UUserId == "" {
+		u.BasicUser.UUserId = u.JiraUser.AccountID
 	}
 	return &u, nil
 }
@@ -123,6 +130,6 @@ func RequireClient(a action.Action) error {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
 	ac.JiraClient = client
-	a.Debugf("action: loaded upstream client for %q", ac.UpstreamUser.UpstreamDisplayName())
+	a.Debugf("action: loaded upstream client for %q", ac.UpstreamUser.UpstreamUserId())
 	return nil
 }

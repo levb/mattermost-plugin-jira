@@ -16,10 +16,14 @@ import (
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-type jiraServerUser struct {
+type user struct {
 	jira.User
 	Oauth1AccessToken  string `json:",omitempty"`
 	Oauth1AccessSecret string `json:",omitempty"`
+}
+
+func (u user) UpstreamUserId() string {
+	return u.JiraUser.Name
 }
 
 func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStore,
@@ -56,9 +60,9 @@ func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStor
 	}
 
 	// We don't have the Jira user info yet, but have enough to obtain the client
-	user := &jiraServerUser{
+	user := &user{
 		User: jira.User{
-			BasicUser: upstream.NewBasicUser(mattermostUserId, ""),
+			BasicUser: *upstream.NewBasicUser(mattermostUserId, ""),
 		},
 		Oauth1AccessToken:  accessToken,
 		Oauth1AccessSecret: accessSecret,
@@ -72,7 +76,7 @@ func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStor
 		return nil, http.StatusInternalServerError, err
 	}
 	user.User.JiraUser = jira.JiraUser(*juser)
-	user.User.BasicUser = upstream.NewBasicUser(mattermostUserId, juser.Key)
+	user.User.BasicUser.UUserId = juser.Name
 
 	err = proxy.StoreUserNotify(api, serverUp, user)
 	if err != nil {

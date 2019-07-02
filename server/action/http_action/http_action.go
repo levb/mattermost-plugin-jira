@@ -36,7 +36,7 @@ func (a Action) FormValue(key string) string {
 	return a.r.FormValue(key)
 }
 
-func (a Action) RespondError(status int, err error, wrap ...interface{}) error {
+func (a *Action) RespondError(status int, err error, wrap ...interface{}) error {
 	if len(wrap) > 0 {
 		fmt := wrap[0].(string)
 		if err != nil {
@@ -55,7 +55,7 @@ func (a Action) RespondError(status int, err error, wrap ...interface{}) error {
 	return err
 }
 
-func (a Action) RespondPrintf(format string, args ...interface{}) error {
+func (a *Action) RespondPrintf(format string, args ...interface{}) error {
 	text := fmt.Sprintf(format, args...)
 	a.rw.Header().Set("Content-Type", "text/plain")
 	_, err := a.rw.Write([]byte(text))
@@ -67,7 +67,7 @@ func (a Action) RespondPrintf(format string, args ...interface{}) error {
 	return nil
 }
 
-func (a Action) RespondRedirect(redirectURL string) error {
+func (a *Action) RespondRedirect(redirectURL string) error {
 	status := http.StatusFound
 	if a.r.Method != http.MethodGet {
 		status = http.StatusTemporaryRedirect
@@ -77,7 +77,7 @@ func (a Action) RespondRedirect(redirectURL string) error {
 	return nil
 }
 
-func (a Action) RespondTemplate(templateKey, contentType string, values interface{}) error {
+func (a *Action) RespondTemplate(templateKey, contentType string, values interface{}) error {
 	t := a.Context().Templates[templateKey]
 	if t == nil {
 		return a.RespondError(http.StatusInternalServerError, nil,
@@ -93,7 +93,7 @@ func (a Action) RespondTemplate(templateKey, contentType string, values interfac
 	return nil
 }
 
-func (a Action) RespondJSON(value interface{}) error {
+func (a *Action) RespondJSON(value interface{}) error {
 	a.rw.Header().Set("Content-Type", "application/json")
 	err := json.NewEncoder(a.rw).Encode(value)
 	if err != nil {
@@ -124,7 +124,6 @@ func Request(action action.Action) *http.Request {
 
 func LogAction(a action.Action) error {
 	httpAction, ok := a.(*Action)
-	fmt.Printf("<><> Log action %v %v\n", httpAction.status, a.Context().LogErr)
 	switch {
 	case !ok:
 		a.Errorf("http: error: misconfiguration, wrong action type %T", a)

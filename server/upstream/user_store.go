@@ -38,6 +38,7 @@ func (up BasicUpstream) LoadUser(mattermostUserId string) (User, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("<><> LoadUser: %v %+v", err, u)
 	if u.MattermostUserId() != mattermostUserId {
 		return nil, errors.Errorf(
 			"stored user id %q did not match the current user id: %q", u.MattermostUserId(), mattermostUserId)
@@ -50,6 +51,7 @@ func (up BasicUpstream) LoadMattermostUserId(upstreamUserId string) (string, err
 	upkey := up.userkey(upstreamUserId)
 	mattermostUserId := ""
 	err := kvstore.LoadJSON(up.kv, upkey, &mattermostUserId)
+	fmt.Printf("<><> LoadMattermostUserId: %v %q", err, mattermostUserId)
 	if err != nil {
 		return "", err
 	}
