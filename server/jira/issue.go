@@ -25,7 +25,7 @@ type CreateIssueRequest struct {
 	Fields    jira.IssueFields `json:"fields"`
 }
 
-func CreateIssue(
+func createIssue(
 	api mmplugin.API,
 	siteURL string,
 	jiraClient *jira.Client,
@@ -231,11 +231,13 @@ func getCreateIssueMetadata(jiraClient *jira.Client) (*jira.CreateMetaInfo, erro
 	cimd, resp, err := jiraClient.Issue.GetCreateMetaWithOptions(&jira.GetQueryOptions{
 		Expand: "projects.issuetypes.fields",
 	})
+	if resp != nil {
+		defer resp.Body.Close()
+	}
 	if err != nil {
 		message := "failed to get CreateIssue metadata"
 		if resp != nil {
 			bb, _ := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
 			message += ", details:" + string(bb)
 		}
 		return nil, errors.WithMessage(err, message)

@@ -4,9 +4,11 @@
 package jira
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
+	"github.com/mattermost/mattermost-plugin-jira/server/action/http_action"
 	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 )
 
@@ -54,13 +56,30 @@ var issueHTTPRoutes = map[string]*action.Route{
 }
 
 func httpCreateIssue(a action.Action) error {
-	// TODO
-	return nil
+	ac := a.Context()
+	r := http_action.Request(a)
+	req := CreateIssueRequest{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return a.RespondError(http.StatusBadRequest, err, "failed to decode create issue request")
+	}
+
+	issue, status, err := createIssue(ac.API, ac.MattermostSiteURL, ac.JiraClient,
+		ac.Upstream, ac.MattermostUserId, &req)
+	if err != nil {
+		return a.RespondError(status, err, "failed to create issue")
+	}
+
+	return a.RespondJSON(issue)
 }
 
 func httpGetCreateIssueMetadata(a action.Action) error {
-	// TODO
-	return nil
+	md, err := getCreateIssueMetadata(a.Context().JiraClient)
+	if err != nil {
+		return a.RespondError(http.StatusInternalServerError, err,
+			"failed to get create issue metadata")
+	}
+	return a.RespondJSON(md)
 }
 
 func httpGetSearchIssues(a action.Action) error {
