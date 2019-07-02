@@ -63,6 +63,7 @@ func (a Action) RespondPrintf(format string, args ...interface{}) error {
 		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
 	}
+	a.status = http.StatusOK
 	return nil
 }
 
@@ -88,6 +89,7 @@ func (a Action) RespondTemplate(templateKey, contentType string, values interfac
 		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
 	}
+	a.status = http.StatusOK
 	return nil
 }
 
@@ -98,6 +100,7 @@ func (a Action) RespondJSON(value interface{}) error {
 		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
 	}
+	a.status = http.StatusOK
 	return nil
 }
 
@@ -121,6 +124,7 @@ func Request(action action.Action) *http.Request {
 
 func LogAction(a action.Action) error {
 	httpAction, ok := a.(*Action)
+	fmt.Printf("<><> Log action %v %v\n", httpAction.status, a.Context().LogErr)
 	switch {
 	case !ok:
 		a.Errorf("http: error: misconfiguration, wrong action type %T", a)

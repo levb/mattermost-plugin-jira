@@ -4,6 +4,7 @@
 package action
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -96,14 +97,12 @@ func (router Router) RunRoute(key string, a Action) {
 
 	err := handler.Run(a)
 	if err != nil {
+		fmt.Printf("<><> Got error %v\n", err)
 		a.Context().LogErr = err
 	}
 
 	if len(router.After) > 0 {
-		errAfter := router.After.Run(a)
-		if errAfter != nil {
-			return
-		}
+		_ = router.After.Run(a)
 	}
 }
 
