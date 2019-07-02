@@ -13,19 +13,6 @@ import (
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-// Config is the main plugin configuration, stored in the Mattermost config,
-// and updated via Mattermost system console, CLI, or other means
-type Config struct {
-	// Setting to turn on/off the webapp components of this plugin
-	EnableJiraUI bool `json:"enablejiraui"`
-
-	// Bot username
-	BotUserName string `json:"username"`
-
-	// Legacy 1.x Webhook secret
-	WebhookSecret string `json:"secret"`
-}
-
 // Context is the run-time execution context
 type Context struct {
 	Config
@@ -55,18 +42,18 @@ type Context struct {
 	BotIconURL string
 }
 
-type UpdateableContext struct {
+type SynchronizedContext struct {
 	context Context
 	lock    sync.RWMutex
 }
 
-func (c *UpdateableContext) GetContext() Context {
+func (c *SynchronizedContext) GetContext() Context {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.context
 }
 
-func (c *UpdateableContext) UpdateContext(f func(conf *Context)) Context {
+func (c *SynchronizedContext) UpdateContext(f func(conf *Context)) Context {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 

@@ -26,7 +26,7 @@ import (
 type Plugin struct {
 	plugin.MattermostPlugin
 
-	context.UpdateableContext
+	context.SynchronizedContext
 
 	Id      string
 	Version string
