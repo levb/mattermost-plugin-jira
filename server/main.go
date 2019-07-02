@@ -4,9 +4,13 @@
 package main
 
 import (
-	"github.com/mattermost/mattermost-server/plugin"
+	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
+	server_plugin "github.com/mattermost/mattermost-server/plugin"
 )
 
 func main() {
-	plugin.ClientMain(&Plugin{})
+	server_plugin.ClientMain(&plugin.Plugin{
+		Id:      manifest.Id,
+		Version: manifest.Version,
+	})
 }

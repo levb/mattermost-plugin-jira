@@ -18,18 +18,12 @@ import {handleConnectChange, getConnected, openChannelSettings, handleInstanceSt
 import Hooks from './hooks/hooks';
 
 export let setupUI;
-let haveSetUpUI = false;
 
 const setupUILater = (registry, store) => async () => {
     const settings = await getSettings(store.getState);
     if (!settings.ui_enabled) {
         return;
     }
-
-    if (haveSetUpUI) {
-        return;
-    }
-    haveSetUpUI = true;
 
     registry.registerReducer(reducers);
 
