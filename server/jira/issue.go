@@ -20,9 +20,11 @@ import (
 )
 
 type CreateIssueRequest struct {
-	PostId    string           `json:"post_id"`
-	ChannelId string           `json:"channel_id"`
-	Fields    jira.IssueFields `json:"fields"`
+	CurrentTeam              string           `json:"current_team"`
+	ChannelId                string           `json:"channel_id"`
+	PostId                   string           `json:"post_id"`
+	Fields                   jira.IssueFields `json:"fields"`
+	RequiredFieldsNotCovered [][]string       `json:"required_fields_not_covered"`
 }
 
 func createIssue(
@@ -38,7 +40,7 @@ func createIssue(
 	var fromPost *model.Post
 	var appErr *model.AppError
 	// If this issue is attached to a post, lets add a permalink to the post in the Jira Description
-	if req.PostId != "" {
+	if fromPostId != "" {
 		fromPost, appErr = api.GetPost(fromPostId)
 		if appErr != nil {
 			return nil, http.StatusInternalServerError,
@@ -48,12 +50,7 @@ func createIssue(
 			return nil, http.StatusInternalServerError,
 				errors.Errorf("failed to load post %q: not found", fromPostId)
 		}
-		permalink := ""
-		permalink, err := GetPermalink(api, siteURL, fromPostId, fromPost)
-		if err != nil {
-			return nil, http.StatusInternalServerError,
-				errors.WithMessagef(err, "failed to get permalink for: %q", req.PostId)
-		}
+		permalink := getPermalink(siteURL, req.CurrentTeam, fromPostId)
 
 		if len(req.Fields.Description) > 0 {
 			req.Fields.Description += "\n" + permalink
@@ -133,7 +130,7 @@ type SearchIssueSummary struct {
 	Label string `json:"label"`
 }
 
-func GetSearchIssues(jiraClient *jira.Client, jqlString string) ([]SearchIssueSummary, int, error) {
+func getSearchIssues(jiraClient *jira.Client, jqlString string) ([]SearchIssueSummary, int, error) {
 	searchRes, resp, err := jiraClient.Issue.Search(jqlString, &jira.SearchOptions{
 		MaxResults: 50,
 		Fields:     []string{"key", "summary"},
@@ -161,11 +158,12 @@ func GetSearchIssues(jiraClient *jira.Client, jqlString string) ([]SearchIssueSu
 }
 
 type AttachCommentToIssueRequest struct {
-	PostId   string `json:"post_id"`
-	IssueKey string `json:"issueKey"`
+	CurrentTeam string `json:"current_team"`
+	IssueKey    string `json:"issueKey"`
+	PostId      string `json:"post_id"`
 }
 
-func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Client,
+func attachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Client,
 	up upstream.Upstream, mattermostUserId string, req AttachCommentToIssueRequest,
 	user upstream.User) (*jira.Comment, int, error) {
 
@@ -181,21 +179,12 @@ func AttachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Cli
 		return nil, http.StatusInternalServerError,
 			errors.WithMessagef(appErr, "failed to load User %q", post.UserId)
 	}
-
-	permalink, err := GetPermalink(api, siteURL, req.PostId, post)
-	if err != nil {
-		return nil, http.StatusInternalServerError,
-			errors.WithMessagef(err, "failed to get permalink for %q", req.PostId)
-	}
-
+	permalink := getPermalink(siteURL, req.CurrentTeam, req.PostId)
 	permalinkMessage := fmt.Sprintf("*@%s attached a* [message|%s] *from @%s*\n",
 		user.UpstreamDisplayName(), permalink, commentUser.Username)
-
-	var jiraComment jira.Comment
-	jiraComment.Body = permalinkMessage
-	jiraComment.Body += post.Message
-
-	commentAdded, _, err := jiraClient.Issue.AddComment(req.IssueKey, &jiraComment)
+	commentAdded, _, err := jiraClient.Issue.AddComment(req.IssueKey, &jira.Comment{
+		Body: permalinkMessage + post.Message,
+	})
 	if err != nil {
 		return nil, http.StatusInternalServerError,
 			errors.WithMessagef(err, "failed to attach the comment, postId: %q", req.PostId)
@@ -245,19 +234,8 @@ func getCreateIssueMetadata(jiraClient *jira.Client) (*jira.CreateMetaInfo, erro
 	return cimd, nil
 }
 
-func GetPermalink(api mmplugin.API, siteURL, postId string, post *model.Post) (string, error) {
-	channel, appErr := api.GetChannel(post.ChannelId)
-	if appErr != nil {
-		return "", errors.WithMessage(appErr, "failed to get ChannelId, ChannelId: "+post.ChannelId)
-	}
-
-	team, appErr := api.GetTeam(channel.TeamId)
-	if appErr != nil {
-		return "", errors.WithMessage(appErr, "failed to get team, TeamId: "+channel.TeamId)
-	}
-
-	permalink := fmt.Sprintf("%v/%v/pl/%v", siteURL, team.Name, postId)
-	return permalink, nil
+func getPermalink(mattermostSiteURL, currentTeam, postId string) string {
+	return fmt.Sprintf("%v/%v/pl/%v", mattermostSiteURL, currentTeam, postId)
 }
 
 func TransitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, toState string) (string, error) {

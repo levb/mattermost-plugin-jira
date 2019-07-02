@@ -63,13 +63,11 @@ func httpCreateIssue(a action.Action) error {
 	if err != nil {
 		return a.RespondError(http.StatusBadRequest, err, "failed to decode create issue request")
 	}
-
 	issue, status, err := createIssue(ac.API, ac.MattermostSiteURL, ac.JiraClient,
 		ac.Upstream, ac.MattermostUserId, &req)
 	if err != nil {
 		return a.RespondError(status, err, "failed to create issue")
 	}
-
 	return a.RespondJSON(issue)
 }
 
@@ -83,11 +81,27 @@ func httpGetCreateIssueMetadata(a action.Action) error {
 }
 
 func httpGetSearchIssues(a action.Action) error {
-	// TODO
-	return nil
+	jqlString := a.FormValue("jql")
+	summary, status, err := getSearchIssues(a.Context().JiraClient, jqlString)
+	if err != nil {
+		return a.RespondError(status, err,
+			"failed to search for issues")
+	}
+	return a.RespondJSON(summary)
 }
 
 func httpAttachCommentToIssue(a action.Action) error {
-	// TODO
-	return nil
+	ac := a.Context()
+	r := http_action.Request(a)
+	req := AttachCommentToIssueRequest{}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return a.RespondError(http.StatusBadRequest, err, "failed to decode attach comment to issue request")
+	}
+	comment, status, err := attachCommentToIssue(ac.API, ac.MattermostSiteURL, ac.JiraClient,
+		ac.Upstream, ac.MattermostUserId, req, ac.UpstreamUser)
+	if err != nil {
+		return a.RespondError(status, err, "failed to attach comment to issue")
+	}
+	return a.RespondJSON(comment)
 }
