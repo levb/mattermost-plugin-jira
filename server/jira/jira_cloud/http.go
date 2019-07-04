@@ -97,7 +97,7 @@ func httpInstalled(a action.Action) error {
 	ac := a.Context()
 	r := http_action.Request(a)
 
-	status, err := processInstalled(ac.API, ac.UpstreamStore,
+	status, err := processInstalled(ac.API, ac.UpstreamStore, ac.OneTimeStore,
 		ac.AuthTokenSecret, r.Body)
 	if err != nil {
 		return a.RespondError(status, err,

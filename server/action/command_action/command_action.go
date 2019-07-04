@@ -20,10 +20,13 @@ import (
 // internals in special cases, Action interface is not mature enough.
 type Action struct {
 	action.Action
-	*Metadata
+	md *Metadata
 
-	args            []string
-	argsMap         map[string]string
+	router *action.Router
+	route  *action.Route
+
+	argv            []string
+	args            map[string]string
 	commandArgs     *model.CommandArgs
 	commandResponse *model.CommandResponse
 }
@@ -43,16 +46,17 @@ type Metadata struct {
 var _ action.Action = (*Action)(nil)
 
 // Make makes a new command Action. In case of an error, it still
-// returns a non-nil Action so that the caller can RespondXXX as needed
+// returns a non-nil Action so that the caller can RespondXXX as needed.
+// argv must be provided and superseeds the values in commandArgs.
 func Make(router *action.Router, inner action.Action, commandArgs *model.CommandArgs) (string, action.Action, error) {
-
 	a := &Action{
 		Action:          inner,
 		commandArgs:     commandArgs,
 		commandResponse: &model.CommandResponse{},
 	}
-
 	a.Context().MattermostUserId = commandArgs.UserId
+	a.Context().MattermostTeamId = commandArgs.TeamId
+	a.Context().MattermostChannelId = commandArgs.ChannelId
 
 	argv := strings.Fields(commandArgs.Command)
 	if len(argv) == 0 || argv[0] != "/jira" {
@@ -73,10 +77,8 @@ func Make(router *action.Router, inner action.Action, commandArgs *model.Command
 		// execute the default
 		return "", a, nil
 	}
-	commandItself := strings.Join(argv, " ")
-	argv = argv[n:]
-	a.args = argv
 
+	argv = argv[n:]
 	md := &Metadata{}
 	if route.Metadata != nil {
 		md, _ = route.Metadata.(*Metadata)
@@ -85,28 +87,27 @@ func Make(router *action.Router, inner action.Action, commandArgs *model.Command
 				"MakeCommandAction: misconfigured router: wrong CommandMetadata type %T", route.Metadata)
 		}
 	}
-
 	if md.MinArgc >= 0 && len(argv) < md.MinArgc {
 		return "", a, errors.Errorf(
-			"expected at least %v arguments after %q", md.MinArgc, commandItself)
+			"expected at least %v arguments after %q", md.MinArgc, commandArgs.Command)
 	}
 	if md.MaxArgc >= 0 && len(argv) > md.MaxArgc {
 		return "", a, errors.Errorf(
-			"expected at most %v arguments after %q", md.MaxArgc, commandItself)
+			"expected at most %v arguments after %q", md.MaxArgc, commandArgs.Command)
 	}
-	a.Metadata = md
 
-	// Initialize the FormValue map
-	argsMap := map[string]string{}
-	for i, arg := range argv {
-		if i < len(md.ArgNames) {
-			argsMap[md.ArgNames[i]] = arg
-		}
-		argsMap[fmt.Sprintf("$%v", i+1)] = arg
-	}
-	a.argsMap = argsMap
+	a.md = md
+	a.argv = argv
+	a.args = parseForm(argv, md.ArgNames)
 
 	return key, a, nil
+}
+
+func CloneWithArgs(inner action.Action, argv, names []string) action.Action {
+	a := *(inner.(*Action))
+	a.argv = argv
+	a.args = parseForm(argv, names)
+	return &a
 }
 
 func RequireCommandAction(a action.Action) error {
@@ -118,10 +119,10 @@ func RequireCommandAction(a action.Action) error {
 }
 
 func (a *Action) FormValue(name string) string {
-	if len(a.argsMap) == 0 {
+	if len(a.args) == 0 {
 		return ""
 	}
-	return a.argsMap[name]
+	return a.args[name]
 }
 
 func (a *Action) RespondError(code int, err error, wrap ...interface{}) error {
@@ -205,4 +206,21 @@ func LogAction(a action.Action) error {
 func Response(action action.Action) *model.CommandResponse {
 	a, _ := action.(*Action)
 	return a.commandResponse
+}
+
+func Argv(action action.Action) []string {
+	a, _ := action.(*Action)
+	return a.argv
+}
+
+func parseForm(argv, names []string) map[string]string {
+	args := map[string]string{}
+	for i, arg := range argv {
+		if i < len(names) {
+			args[names[i]] = arg
+		}
+		args[fmt.Sprintf("$%v", i+1)] = arg
+	}
+
+	return args
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"regexp"
 
 	"github.com/pkg/errors"
 
@@ -32,17 +31,16 @@ type Plugin struct {
 	Version string
 }
 
-var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
-
 func (p *Plugin) OnActivate() error {
 	kv := kvstore.NewPluginStore(p.API)
-	bundlePath := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory), p.Id)
 	unmarshallers := map[string]upstream.Unmarshaller{
 		jira_cloud.Type:  jira_cloud.Unmarshaller,
 		jira_server.Type: jira_server.Unmarshaller,
 	}
 
-	f, err := MakeContext(p.API, kv, unmarshallers, p.Id, p.Version, bundlePath)
+	templatesPath := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory),
+		p.Id, "server", "dist", "templates")
+	f, err := MakeContext(p.API, kv, unmarshallers, p.Id, p.Version, templatesPath)
 	if err != nil {
 		return errors.WithMessage(err, "OnActivate failed")
 	}
@@ -76,8 +74,6 @@ func (p *Plugin) OnConfigurationChange() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to load plugin configuration")
 	}
-	// Load the public configuration fields from the Mattermost server configuration.
-	mattermostSiteURL := *p.API.GetConfig().ServiceSettings.SiteURL
 
 	newBotUserID := ""
 	if newC.BotUserName != oldC.BotUserName {
@@ -89,7 +85,7 @@ func (p *Plugin) OnConfigurationChange() error {
 	}
 
 	p.UpdateContext(func(c *context.Context) {
-		RefreshContext(p.API, c, oldC, newC, mattermostSiteURL, newBotUserID)
+		RefreshContext(c, p.API, newC, newBotUserID)
 	})
 	return nil
 }

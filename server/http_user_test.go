@@ -43,18 +43,18 @@ func TestGetUserInfo(t *testing.T) {
 			mattermostUserId:   teststore.UserA_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: jira.GetUserInfoResponse{
-				UpstreamInstalled: true,
-				UpstreamURL:       teststore.UpstreamB_URL,
+				HasUpstream: true,
+				UpstreamURL: teststore.UpstreamB_URL,
 			},
 		},
 		"user B": {
 			mattermostUserId:   teststore.UserB_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: jira.GetUserInfoResponse{
-				UpstreamUserId:    teststore.UserB_UpstreamId,
-				UpstreamInstalled: true,
-				UpstreamURL:       teststore.UpstreamB_URL,
-				IsConnected:       true,
+				UpstreamUserId: teststore.UserB_UpstreamId,
+				HasUpstream:    true,
+				UpstreamURL:    teststore.UpstreamB_URL,
+				IsConnected:    true,
 				Settings: upstream.UserSettings{
 					Notifications: true,
 				},
@@ -65,7 +65,7 @@ func TestGetUserInfo(t *testing.T) {
 			api := &plugintest.API{}
 			p := teststore.SetupTestPlugin(t, api, context.Config{
 				EnableJiraUI: true,
-			})
+			}, nil)
 			if !tc.rawStore {
 				teststore.UpstreamStore_2Upstreams2Users(t, p.GetContext().UpstreamStore)
 			}
@@ -120,7 +120,7 @@ func TestGetSettingsInfo(t *testing.T) {
 			api := &plugintest.API{}
 			p := teststore.SetupTestPlugin(t, api, context.Config{
 				EnableJiraUI: tc.enabled,
-			})
+			}, nil)
 			teststore.UpstreamStore_2Upstreams2Users(t, p.GetContext().UpstreamStore)
 
 			w := httptest.NewRecorder()

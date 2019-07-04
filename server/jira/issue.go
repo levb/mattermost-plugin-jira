@@ -238,7 +238,7 @@ func getPermalink(mattermostSiteURL, currentTeam, postId string) string {
 	return fmt.Sprintf("%v/%v/pl/%v", mattermostSiteURL, currentTeam, postId)
 }
 
-func TransitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, toState string) (string, error) {
+func transitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, toState string) (string, error) {
 	transitions, _, err := jiraClient.Issue.GetTransitions(issueKey)
 	if err != nil {
 		return "", errors.New("We couldn't find the issue key. Please confirm the issue key and try again. You may not have permissions to access this issue.")

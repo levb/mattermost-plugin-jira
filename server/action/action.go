@@ -24,8 +24,10 @@ type Context struct {
 	PluginContext *plugin.Context
 	LogErr        error
 
-	MattermostUser   *model.User
-	MattermostUserId string
+	MattermostUser      *model.User
+	MattermostUserId    string
+	MattermostTeamId    string
+	MattermostChannelId string
 
 	Upstream               upstream.Upstream
 	UpstreamJWT            *jwt.Token

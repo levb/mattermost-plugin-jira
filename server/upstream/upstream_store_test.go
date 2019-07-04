@@ -92,7 +92,7 @@ func (_ unmarshaller2) UnmarshalUpstream(data []byte, basicUp BasicUpstream) (Up
 }
 
 func setupUpstreamStoreWith2(underlying kvstore.KVStore) (Store, Upstream, Upstream) {
-	s := NewStore(StoreConfig{},
+	s := NewStore(nil, StoreConfig{},
 		underlying,
 		map[string]Unmarshaller{
 			up1Type: unmarshaller1{},
@@ -128,7 +128,7 @@ func setupUpstreamStoreWith2(underlying kvstore.KVStore) (Store, Upstream, Upstr
 }
 
 func TestMakeBasicUpstream(t *testing.T) {
-	s := NewStore(
+	s := NewStore(nil,
 		StoreConfig{
 			AuthTokenSecret: []byte("secret"),
 		},
@@ -171,10 +171,10 @@ func TestUpstreamStore(t *testing.T) {
 
 	t.Run("Check KV", func(t *testing.T) {
 		require.Equal(t, 4, len(mockedStore.Values))
-		require.NotNil(t, mockedStore.Values[keyCurrentUpstream])
-		require.NotNil(t, mockedStore.Values[keyKnownUpstreams])
-		require.NotNil(t, mockedStore.Values[prefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
-		require.NotNil(t, mockedStore.Values[prefixUpstream+"4a8477d5dd6a9175599aad82ba0a3261"])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyCurrentUpstream])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyKnownUpstreams])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyPrefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyPrefixUpstream+"4a8477d5dd6a9175599aad82ba0a3261"])
 	})
 
 	t.Run("Load", func(t *testing.T) {
@@ -199,10 +199,10 @@ func TestUpstreamStore(t *testing.T) {
 
 	t.Run("Check KV", func(t *testing.T) {
 		require.Equal(t, 4, len(mockedStore.Values))
-		require.NotNil(t, mockedStore.Values[keyCurrentUpstream])
-		require.NotNil(t, mockedStore.Values[keyKnownUpstreams])
-		require.NotNil(t, mockedStore.Values[prefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
-		require.NotNil(t, mockedStore.Values[prefixUpstream+"4a8477d5dd6a9175599aad82ba0a3261"])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyCurrentUpstream])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyKnownUpstreams])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyPrefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyPrefixUpstream+"4a8477d5dd6a9175599aad82ba0a3261"])
 	})
 
 	t.Run("Delete 2", func(t *testing.T) {
@@ -212,8 +212,8 @@ func TestUpstreamStore(t *testing.T) {
 
 	t.Run("Verify after delete 2", func(t *testing.T) {
 		require.Equal(t, 2, len(mockedStore.Values))
-		require.NotNil(t, mockedStore.Values[keyKnownUpstreams])
-		require.NotNil(t, mockedStore.Values[prefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyKnownUpstreams])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyPrefixUpstream+"3fcdd98b4aad6829424697769125c9a0"])
 
 		known, err := s.LoadKnown()
 		require.NoError(t, err)
@@ -228,7 +228,7 @@ func TestUpstreamStore(t *testing.T) {
 
 	t.Run("Verify after delete 1", func(t *testing.T) {
 		require.Equal(t, 1, len(mockedStore.Values))
-		require.NotNil(t, mockedStore.Values[keyKnownUpstreams])
+		require.NotNil(t, mockedStore.Values[kvstore.KeyKnownUpstreams])
 
 		known, err := s.LoadKnown()
 		require.NoError(t, err)

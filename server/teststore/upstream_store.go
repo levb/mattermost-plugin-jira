@@ -143,7 +143,17 @@ func UpstreamStore_2Upstreams2Users(t *testing.T, s upstream.Store) {
 	require.Nil(t, err)
 }
 
-func SetupTestPlugin(t *testing.T, api *plugintest.API, conf context.Config) *plugin.Plugin {
+func SetupTestPlugin(t *testing.T, api *plugintest.API, conf context.Config,
+	mmconfig *model.Config) *plugin.Plugin {
+
+	if mmconfig == nil {
+		mmconfig = &model.Config{
+			ServiceSettings: model.ServiceSettings{
+				SiteURL: model.NewString("http://localhost:8065"),
+			},
+		}
+	}
+
 	kv := kvstore.NewMockedStore()
 	p := &plugin.Plugin{}
 	p.SetAPI(api)
@@ -153,12 +163,13 @@ func SetupTestPlugin(t *testing.T, api *plugintest.API, conf context.Config) *pl
 		mock.AnythingOfTypeArgument("string")).Return(nil)
 	api.On("LogInfo",
 		mock.AnythingOfTypeArgument("string")).Return(nil)
+	api.On("GetConfig").Return(mmconfig)
 
-	f, err := plugin.MakeContext(p.API, kv, Unmarshallers, "pluginID", "version-string", "..")
+	f, err := plugin.MakeContext(p.API, kv, Unmarshallers, "pluginID", "version-string", "./templates")
 	require.Nil(t, err)
 	p.UpdateContext(f)
 	p.UpdateContext(func(c *context.Context) {
-		plugin.RefreshContext(p.API, c, context.Config{}, conf, "site.url", "")
+		plugin.RefreshContext(c, p.API, conf, "")
 	})
 
 	return p

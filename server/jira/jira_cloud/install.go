@@ -19,6 +19,7 @@ import (
 func processInstalled(
 	api plugin.API,
 	upstore upstream.Store,
+	ots kvstore.OneTimeStore,
 	authTokenSecret []byte,
 	body io.Reader) (int, error) {
 
@@ -33,28 +34,17 @@ func processInstalled(
 		return http.StatusBadRequest, errors.WithMessage(err, "failed to unmarshal request")
 	}
 
-	// Only allow this operation once, a Jira upstream must already exist
-	// for asc.BaseURL but not Installed.
-	up, err := upstore.Load(asc.BaseURL)
+	// backed by a one-time store, will only work once
+	err = loadUnconfirmedUpstream(ots, asc.BaseURL)
 	if err == kvstore.ErrNotFound {
 		return http.StatusNotFound,
-			errors.Errorf("Jira upstream %q must first be added to Mattermost", asc.BaseURL)
+			errors.Errorf("not found, already used, or expired: %q", asc.BaseURL)
 	}
 	if err != nil {
-		return http.StatusInternalServerError,
-			errors.WithMessagef(err, "failed to load Jira upstream %q", asc.BaseURL)
-	}
-	cloudUp, ok := up.(*Upstream)
-	if !ok {
-		return http.StatusInternalServerError,
-			errors.Errorf("expected a Jira Cloud upstream, got %T", up)
-	}
-	if cloudUp.Installed {
-		return http.StatusForbidden,
-			errors.Errorf("Jira upstream %q is already installed", asc.BaseURL)
+		return http.StatusInternalServerError, err
 	}
 
-	up = newUpstream(upstore, true, string(data), &asc)
+	up := newUpstream(upstore, string(data), &asc)
 
 	// UpstreamStore.Store also updates the list of known Jira upstreams
 	err = upstore.Store(up)

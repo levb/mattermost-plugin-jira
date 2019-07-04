@@ -21,34 +21,28 @@ import (
 
 const Type = "server"
 
-type Upstream struct {
+type serverUpstream struct {
 	upstream.BasicUpstream
-	mattermostKey string
 }
 
-func newUpstream(upstore upstream.Store, jiraURL, mattermostKey string) upstream.Upstream {
-	conf := upstream.UpstreamConfig{
-		StoreConfig: *(upstore.Config()),
-		Key:         jiraURL,
-		URL:         jiraURL,
-		Type:        Type,
+func newUpstream(upstore upstream.Store, jiraURL string) upstream.Upstream {
+	return &serverUpstream{
+		BasicUpstream: upstore.MakeBasicUpstream(upstream.UpstreamConfig{
+			StoreConfig: *(upstore.Config()),
+			Key:         jiraURL,
+			URL:         jiraURL,
+			Type:        Type,
+		}),
 	}
-
-	up := &Upstream{
-		BasicUpstream: upstore.MakeBasicUpstream(conf),
-		mattermostKey: mattermostKey,
-	}
-
-	return up
 }
 
-func (up Upstream) GetDisplayDetails() map[string]string {
+func (up serverUpstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
-		"MattermostKey": up.mattermostKey,
+		"pluginKey": up.Config().PluginKey,
 	}
 }
 
-func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
+func (up serverUpstream) GetUserConnectURL(ots kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (returnURL string, returnErr error) {
 
 	defer func() {
@@ -67,8 +61,8 @@ func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 		return "", err
 	}
 
-	err = otsStore.StoreOauth1aTemporaryCredentials(mattermostUserId,
-		&kvstore.OAuth1aTemporaryCredentials{Token: token, Secret: secret})
+	err = storeTempCredentials(ots, mattermostUserId,
+		&oauth1aTempCredentials{Token: token, Secret: secret})
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +75,7 @@ func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	return authURL.String(), nil
 }
 
-func (up Upstream) GetClient(pluginURL string,
+func (up serverUpstream) GetClient(pluginURL string,
 	u upstream.User) (returnClient *gojira.Client, returnErr error) {
 	defer func() {
 		if returnErr != nil {
@@ -113,9 +107,9 @@ func (up Upstream) GetClient(pluginURL string,
 	return jiraClient, nil
 }
 
-func (up Upstream) getOAuth1Config(pluginURL string) (*oauth1.Config, error) {
+func (up serverUpstream) getOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
-		ConsumerKey:    up.mattermostKey,
+		ConsumerKey:    up.Config().PluginKey,
 		ConsumerSecret: "dontcare",
 		CallbackURL:    pluginURL + "/" + routeOAuth1Complete,
 		Endpoint: oauth1.Endpoint{
@@ -127,7 +121,7 @@ func (up Upstream) getOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	}, nil
 }
 
-func (up Upstream) PublicKeyString() ([]byte, error) {
+func publicKeyString(up upstream.Upstream) ([]byte, error) {
 	b, err := x509.MarshalPKIXPublicKey(&up.Config().RSAPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")
@@ -144,7 +138,7 @@ func RequireUpstream(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	up, ok := a.Context().Upstream.(*Upstream)
+	up, ok := a.Context().Upstream.(*serverUpstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Server upstream required, got %T", a.Context().Upstream))
@@ -173,7 +167,7 @@ func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.Use
 }
 
 func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
-	up := Upstream{}
+	up := serverUpstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err

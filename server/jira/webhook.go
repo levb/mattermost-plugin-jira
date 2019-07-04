@@ -135,7 +135,7 @@ func newWebhook(jwh *JiraWebhook, eventMask uint64, format string, args ...inter
 	}
 }
 
-func GetWebhookURL(api plugin.API, pluginURL, webhookSecret string, teamId, channelId string) (string, error) {
+func getWebhookURL(api plugin.API, pluginURL, webhookSecret string, teamId, channelId string) (string, error) {
 	team, appErr := api.GetTeam(teamId)
 	if appErr != nil {
 		return "", appErr

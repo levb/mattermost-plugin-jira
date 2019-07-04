@@ -4,7 +4,6 @@
 package context
 
 import (
-	"crypto/rsa"
 	"sync"
 	"text/template"
 
@@ -16,10 +15,7 @@ import (
 // Context is the run-time execution context
 type Context struct {
 	Config
-
-	// Plugin-wide secrets
-	RSAPrivateKey   *rsa.PrivateKey
-	AuthTokenSecret []byte
+	upstream.StoreConfig
 
 	// Service dependencies
 	API           plugin.API
@@ -33,7 +29,6 @@ type Context struct {
 	MattermostSiteURL string
 	PluginId          string
 	PluginVersion     string
-	PluginKey         string
 	PluginURL         string
 	PluginURLPath     string
 

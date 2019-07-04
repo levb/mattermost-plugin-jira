@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeInstallURL(t *testing.T) {
+func TestNormalizeURL(t *testing.T) {
 	for _, tc := range []struct {
 		in, out, err string
 	}{
@@ -31,7 +31,7 @@ func TestNormalizeInstallURL(t *testing.T) {
 		{"//xyz.com/", "https://xyz.com", ""},
 	} {
 		t.Run(tc.in, func(t *testing.T) {
-			out, err := NormalizeUpstreamURL(tc.in)
+			out, err := NormalizeURL(tc.in)
 			require.Equal(t, tc.out, out)
 			errTxt := ""
 			if err != nil {

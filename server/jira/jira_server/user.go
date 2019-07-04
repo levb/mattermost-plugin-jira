@@ -22,11 +22,16 @@ type user struct {
 	Oauth1AccessSecret string `json:",omitempty"`
 }
 
+type oauth1aTempCredentials struct {
+	Token  string
+	Secret string
+}
+
 func (u user) UpstreamUserId() string {
 	return u.JiraUser.Name
 }
 
-func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStore,
+func (serverUp *serverUpstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStore,
 	r *http.Request, pluginURL, mattermostUserId string) (upstream.User, int, error) {
 
 	requestToken, verifier, err := oauth1.ParseAuthorizationCallback(r)
@@ -35,7 +40,7 @@ func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStor
 			"failed to parse callback request from Jira")
 	}
 
-	oauthTmpCredentials, err := ots.LoadOauth1aTemporaryCredentials(mattermostUserId)
+	oauthTmpCredentials, err := loadTempCredentials(ots, mattermostUserId)
 	if err != nil || oauthTmpCredentials == nil || len(oauthTmpCredentials.Token) <= 0 {
 		return nil, http.StatusInternalServerError, errors.WithMessagef(err,
 			"failed to get temporary credentials for %q", mattermostUserId)
@@ -84,4 +89,19 @@ func (serverUp *Upstream) completeOAuth1(api plugin.API, ots kvstore.OneTimeStor
 	}
 
 	return user, http.StatusOK, nil
+}
+
+func storeTempCredentials(ots kvstore.OneTimeStore, mmUserId string, credentials *oauth1aTempCredentials) error {
+	s := kvstore.NewHashedKeyStore(ots, kvstore.KeyPrefixTempOAuth1aCredentials)
+	return kvstore.StoreJSON(s, mmUserId, credentials)
+}
+
+func loadTempCredentials(ots kvstore.OneTimeStore, mmUserId string) (*oauth1aTempCredentials, error) {
+	s := kvstore.NewHashedKeyStore(ots, kvstore.KeyPrefixTempOAuth1aCredentials)
+	var credentials oauth1aTempCredentials
+	err := kvstore.LoadJSON(s, mmUserId, &credentials)
+	if err != nil {
+		return nil, err
+	}
+	return &credentials, nil
 }

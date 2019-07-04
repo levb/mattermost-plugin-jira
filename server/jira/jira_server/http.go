@@ -31,7 +31,7 @@ var HTTPRoutes = map[string]*action.Route{
 func httpCompleteOAuth1(a action.Action) error {
 	ac := a.Context()
 	r := http_action.Request(a)
-	up, _ := ac.Upstream.(*Upstream)
+	up, _ := ac.Upstream.(*serverUpstream)
 
 	u, status, err := up.completeOAuth1(ac.API, ac.OneTimeStore, r, ac.PluginURL, ac.MattermostUserId)
 	if err != nil {
@@ -50,9 +50,7 @@ func httpCompleteOAuth1(a action.Action) error {
 }
 
 func httpGetOAuth1PublicKey(a action.Action) error {
-	ac := a.Context()
-	serverUp := ac.Upstream.(*Upstream)
-	pkey, err := serverUp.PublicKeyString()
+	pkey, err := publicKeyString(a.Context().Upstream)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err, "failed to load public key")
 	}

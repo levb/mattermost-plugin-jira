@@ -230,7 +230,7 @@ func TestSubscribe(t *testing.T) {
 				EnableJiraUI:  false,
 				WebhookSecret: "somesecret",
 				BotUserName:   "someuser",
-			})
+			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
 
@@ -305,7 +305,7 @@ func TestDeleteSubscription(t *testing.T) {
 				EnableJiraUI:  false,
 				WebhookSecret: "somesecret",
 				BotUserName:   "someuser",
-			})
+			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
 
@@ -384,7 +384,7 @@ func TestEditSubscription(t *testing.T) {
 				EnableJiraUI:  false,
 				WebhookSecret: "somesecret",
 				BotUserName:   "someuser",
-			})
+			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
 
@@ -526,7 +526,7 @@ func TestGetSubscriptionsForChannel(t *testing.T) {
 				EnableJiraUI:  false,
 				WebhookSecret: "somesecret",
 				BotUserName:   "someuser",
-			})
+			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
 

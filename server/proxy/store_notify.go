@@ -13,15 +13,32 @@ const (
 )
 
 func StoreCurrentUpstreamNotify(api plugin.API, upstreamStore upstream.Store, up upstream.Upstream) error {
-	appErr := upstreamStore.StoreCurrent(up)
-	if appErr != nil {
-		return appErr
+	err := upstreamStore.StoreCurrent(up)
+	if err != nil {
+		return err
 	}
 	// Notify users we have installed an instance
 	api.PublishWebSocketEvent(
 		WebsocketEventUpstreamStatus,
 		map[string]interface{}{
 			"instance_installed": true,
+		},
+		&model.WebsocketBroadcast{},
+	)
+	return nil
+}
+
+func DeleteUpstreamNotify(api plugin.API, upstreamStore upstream.Store, upstreamKey string) error {
+	err := upstreamStore.Delete(upstreamKey)
+	if err != nil {
+		return err
+	}
+
+	// Assume that this was the current instance, and notify the user
+	api.PublishWebSocketEvent(
+		WebsocketEventUpstreamStatus,
+		map[string]interface{}{
+			"instance_installed": false,
 		},
 		&model.WebsocketBroadcast{},
 	)

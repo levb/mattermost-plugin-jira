@@ -71,11 +71,11 @@ func getUserConnectURL(pluginURL string, oneTimeStore kvstore.OneTimeStore,
 type GetUserInfoResponse struct {
 	// Including the upstream BasicUser object here as an interface,
 	// so it serializes itself inline with the other fields
-	UpstreamUserId    string                `json:"upstream_user_id"`
-	Settings          upstream.UserSettings `json:"settings"`
-	IsConnected       bool                  `json:"is_connected"`
-	UpstreamInstalled bool                  `json:"instance_installed"`
-	UpstreamURL       string                `json:"jira_url,omitempty"`
+	UpstreamUserId string                `json:"upstream_user_id,omitempty"`
+	Settings       upstream.UserSettings `json:"settings,omitempty"`
+	IsConnected    bool                  `json:"is_connected"`
+	HasUpstream    bool                  `json:"instance_installed"`
+	UpstreamURL    string                `json:"jira_url,omitempty"`
 }
 
 func getUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoResponse {
@@ -84,7 +84,7 @@ func getUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoRes
 	if err != nil {
 		return resp
 	}
-	resp.UpstreamInstalled = true
+	resp.HasUpstream = true
 	resp.UpstreamURL = up.Config().URL
 	u, err := up.LoadUser(mattermostUserId)
 	if err == nil {

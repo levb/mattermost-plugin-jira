@@ -24,13 +24,6 @@ const Type = "cloud"
 type Upstream struct {
 	upstream.BasicUpstream
 
-	// Initially a new instance is created with an expiration time. The
-	// admin is expected to upload it to the Jira instance, and we will
-	// then receive a /installed callback that initializes the instance
-	// and makes it permanent. No subsequent /installed will be accepted
-	// for the instance.
-	Installed bool
-
 	// For cloud instances (atlassian-connect.json install and user auth)
 	RawAtlassianSecurityContext string
 
@@ -53,7 +46,7 @@ type atlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func newUpstream(upStore upstream.Store, installed bool, rawASC string,
+func newUpstream(upStore upstream.Store, rawASC string,
 	asc *atlassianSecurityContext) upstream.Upstream {
 
 	conf := upstream.UpstreamConfig{
@@ -65,19 +58,12 @@ func newUpstream(upStore upstream.Store, installed bool, rawASC string,
 
 	return &Upstream{
 		BasicUpstream:               upStore.MakeBasicUpstream(conf),
-		Installed:                   installed,
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
 	}
 }
 
 func (up Upstream) GetDisplayDetails() map[string]string {
-	if !up.Installed {
-		return map[string]string{
-			"Setup": "In progress",
-		}
-	}
-
 	return map[string]string{
 		"Key":            up.atlassianSecurityContext.Key,
 		"ClientKey":      up.atlassianSecurityContext.ClientKey,
@@ -169,4 +155,14 @@ func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstr
 
 func (_ unmarshaller) UnmarshalUser(data []byte, mattermostUserId string) (upstream.User, error) {
 	return jira.UnmarshalUser(data, mattermostUserId)
+}
+
+func storeUnconfirmedUpstream(ots kvstore.OneTimeStore, jiraURL string) error {
+	return kvstore.NewHashedKeyStore(ots, kvstore.KeyPrefixUnconfirmedUpstream).Store(
+		jiraURL, []byte("doesn't matter"))
+}
+
+func loadUnconfirmedUpstream(ots kvstore.OneTimeStore, jiraURL string) error {
+	_, err := kvstore.NewHashedKeyStore(ots, kvstore.KeyPrefixUnconfirmedUpstream).Load(jiraURL)
+	return err
 }

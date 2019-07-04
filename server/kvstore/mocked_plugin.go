@@ -36,6 +36,8 @@ func NewMockedStore() *MockedStore {
 
 	s.API.On("KVGet", mock.AnythingOfType("string")).Return(get, nil)
 	s.API.On("KVSet", mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8")).Return(set)
+	// Expiring keys don't expire
+	s.API.On("KVSetWithExpiry", mock.AnythingOfType("string"), mock.AnythingOfType("[]uint8"), mock.AnythingOfType("uint64")).Return(set)
 	s.API.On("KVDelete", mock.AnythingOfType("string")).Return(del)
 
 	s.KVStore = NewPluginStore(&s.API)

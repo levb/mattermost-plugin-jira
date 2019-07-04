@@ -4,20 +4,29 @@
 package kvstore
 
 import (
+	"time"
+
+	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 
 	"github.com/pkg/errors"
 )
 
 type pluginStore struct {
-	api plugin.API
+	api        plugin.API
+	ttlSeconds int64
 }
 
 var _ KVStore = (*pluginStore)(nil)
 
 func NewPluginStore(api plugin.API) KVStore {
+	return NewPluginStoreWithExpiry(api, 0)
+}
+
+func NewPluginStoreWithExpiry(api plugin.API, ttl time.Duration) KVStore {
 	return &pluginStore{
-		api: api,
+		api:        api,
+		ttlSeconds: (int64)(ttl / time.Second),
 	}
 }
 
@@ -33,9 +42,14 @@ func (s pluginStore) Load(key string) ([]byte, error) {
 }
 
 func (s pluginStore) Store(key string, data []byte) error {
-	appErr := s.api.KVSet(key, data)
+	var appErr *model.AppError
+	if s.ttlSeconds > 0 {
+		appErr = s.api.KVSetWithExpiry(key, data, s.ttlSeconds)
+	} else {
+		appErr = s.api.KVSet(key, data)
+	}
 	if appErr != nil {
-		return errors.WithMessagef(appErr, "failed plugin KVSet %q", key)
+		return errors.WithMessagef(appErr, "failed plugin KVSet (ttl: %vs) %q", s.ttlSeconds, key)
 	}
 	return nil
 }

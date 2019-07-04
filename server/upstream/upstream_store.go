@@ -8,18 +8,14 @@ import (
 	"encoding/json"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
+	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
-)
-
-const (
-	keyCurrentUpstream = "current_jira_instance"
-	keyKnownUpstreams  = "known_jira_instances"
-	prefixUpstream     = "jira_instance_"
 )
 
 type StoreConfig struct {
 	RSAPrivateKey   *rsa.PrivateKey `json:"-"`
 	AuthTokenSecret []byte          `json:"-"`
+	PluginKey       string          `json:"-"`
 }
 
 type Store interface {
@@ -43,15 +39,17 @@ type Unmarshaller interface {
 
 type upstreamStore struct {
 	config        StoreConfig
+	api           plugin.API
 	kv            kvstore.KVStore
 	upstreamKV    kvstore.KVStore
 	unmarshallers map[string]Unmarshaller
 }
 
-func NewStore(conf StoreConfig, kv kvstore.KVStore, unmarshallers map[string]Unmarshaller) Store {
+func NewStore(api plugin.API, conf StoreConfig, kv kvstore.KVStore, unmarshallers map[string]Unmarshaller) Store {
 	return &upstreamStore{
+		api:           api,
 		kv:            kv,
-		upstreamKV:    kvstore.NewHashedKeyStore(kv, prefixUpstream),
+		upstreamKV:    kvstore.NewHashedKeyStore(kv, kvstore.KeyPrefixUpstream),
 		config:        conf,
 		unmarshallers: unmarshallers,
 	}
@@ -95,7 +93,7 @@ func (s upstreamStore) load(dataf func() ([]byte, error)) (Upstream, error) {
 	}
 
 	// Unmarshal into any of the types just so that we can get the common data
-	up := BasicUpstream{}
+	up := s.MakeBasicUpstream(UpstreamConfig{})
 	err = json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
@@ -163,7 +161,7 @@ func (s upstreamStore) Delete(key string) (returnErr error) {
 	switch err {
 	case nil:
 		if up.Config().Key == key {
-			err = s.kv.Delete(keyCurrentUpstream)
+			err = s.kv.Delete(kvstore.KeyCurrentUpstream)
 			if err != nil {
 				return err
 			}
@@ -174,11 +172,12 @@ func (s upstreamStore) Delete(key string) (returnErr error) {
 	default:
 		return err
 	}
+
 	return nil
 }
 
 func (s upstreamStore) StoreKnown(known map[string]string) error {
-	err := kvstore.StoreJSON(s.kv, keyKnownUpstreams, known)
+	err := kvstore.StoreJSON(s.kv, kvstore.KeyKnownUpstreams, known)
 	if err != nil {
 		return err
 	}
@@ -187,7 +186,7 @@ func (s upstreamStore) StoreKnown(known map[string]string) error {
 
 func (s upstreamStore) LoadKnown() (map[string]string, error) {
 	known := map[string]string{}
-	err := kvstore.LoadJSON(s.kv, keyKnownUpstreams, &known)
+	err := kvstore.LoadJSON(s.kv, kvstore.KeyKnownUpstreams, &known)
 	if err != nil {
 		return nil, err
 	}
@@ -195,11 +194,11 @@ func (s upstreamStore) LoadKnown() (map[string]string, error) {
 }
 
 func (s upstreamStore) StoreCurrent(up Upstream) error {
-	return kvstore.StoreJSON(s.kv, keyCurrentUpstream, up)
+	return kvstore.StoreJSON(s.kv, kvstore.KeyCurrentUpstream, up)
 }
 
 func (s upstreamStore) LoadCurrentRaw() ([]byte, error) {
-	return s.kv.Load(keyCurrentUpstream)
+	return s.kv.Load(kvstore.KeyCurrentUpstream)
 }
 
 func (s *upstreamStore) Config() *StoreConfig {

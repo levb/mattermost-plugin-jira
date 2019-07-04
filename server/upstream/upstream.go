@@ -57,7 +57,7 @@ func (up BasicUpstream) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL st
 	return "", nil
 }
 
-func NormalizeUpstreamURL(upURL string) (string, error) {
+func NormalizeURL(upURL string) (string, error) {
 	u, err := url.Parse(upURL)
 	if err != nil {
 		return "", err

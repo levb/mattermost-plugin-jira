@@ -6,8 +6,10 @@ package plugin
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -18,10 +20,13 @@ import (
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-func MakeContext(api plugin.API, kv kvstore.KVStore, unmarshallers map[string]upstream.Unmarshaller,
-	pluginId, pluginVersion, bundlePath string) (func(*context.Context), error) {
+var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
+var regexpUnderlines = regexp.MustCompile("_+")
 
-	ots := kvstore.NewPluginOneTimeStore(api, 60*15) // TTL 15 minutes
+func MakeContext(api plugin.API, kv kvstore.KVStore, unmarshallers map[string]upstream.Unmarshaller,
+	pluginId, pluginVersion, templatePath string) (func(*context.Context), error) {
+
+	ots := kvstore.NewOneTimePluginStore(api, 15*time.Minute)
 
 	rsaPrivateKey, err := proxy.EnsureRSAPrivateKey(kv)
 	if err != nil {
@@ -31,16 +36,21 @@ func MakeContext(api plugin.API, kv kvstore.KVStore, unmarshallers map[string]up
 	if err != nil {
 		return nil, err
 	}
+	mattermostSiteURL := *api.GetConfig().ServiceSettings.SiteURL
+	pluginKey := regexpNonAlnum.ReplaceAllString(strings.TrimRight(mattermostSiteURL, "/"), "_")
+	pluginKey = "mattermost_" + regexpUnderlines.ReplaceAllString(pluginKey, "_")
 	upstoreConfig := upstream.StoreConfig{
 		RSAPrivateKey:   rsaPrivateKey,
 		AuthTokenSecret: authTokenSecret,
+		PluginKey:       pluginKey,
 	}
-	upstore := upstream.NewStore(upstoreConfig, kv, unmarshallers)
+	upstore := upstream.NewStore(api, upstoreConfig, kv, unmarshallers)
 	if err != nil {
 		return nil, err
 	}
 
 	// HW FUTURE TODO: Better template management, text vs html
+	dir := filepath.Join(templatePath)
 	dir := filepath.Join(bundlePath, "server", "dist", "templates")
 	templates, err := loadTemplates(dir)
 	if err != nil {
@@ -48,6 +58,8 @@ func MakeContext(api plugin.API, kv kvstore.KVStore, unmarshallers map[string]up
 	}
 
 	return func(c *context.Context) {
+		c.StoreConfig = upstoreConfig
+		c.MattermostSiteURL = mattermostSiteURL
 		c.API = api
 		c.UpstreamStore = upstore
 		c.OneTimeStore = ots
@@ -55,16 +67,12 @@ func MakeContext(api plugin.API, kv kvstore.KVStore, unmarshallers map[string]up
 		c.PluginId = pluginId
 		c.PluginVersion = pluginVersion
 		c.PluginURLPath = "/plugins/" + pluginId
+		c.PluginURL = strings.TrimRight(c.MattermostSiteURL, "/") + c.PluginURLPath
 	}, nil
 }
 
-func RefreshContext(api plugin.API, c *context.Context, oldC, newC context.Config, mattermostSiteURL, newBotUserID string) {
+func RefreshContext(c *context.Context, api plugin.API, newC context.Config, newBotUserID string) {
 	c.Config = newC
-	c.MattermostSiteURL = mattermostSiteURL
-	c.PluginKey = "mattermost_" + regexpNonAlnum.ReplaceAllString(c.MattermostSiteURL, "_")
-	c.PluginURLPath = "/plugins/" + c.PluginId
-	c.PluginURL = strings.TrimRight(c.MattermostSiteURL, "/") + c.PluginURLPath
-
 	if newBotUserID != "" {
 		c.BotUserId = newBotUserID
 	}
