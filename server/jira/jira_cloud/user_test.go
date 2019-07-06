@@ -10,8 +10,8 @@ import (
 )
 
 func TestNewAuthToken(t *testing.T) {
-	up := Upstream{}
-	up.BasicUpstream.UpstreamConfig.StoreConfig.AuthTokenSecret = []byte("abcdefghijABCDEFGHIJabcdefghijXY")
+	up := cloudUpstream{}
+	up.Context().ProxyAuthTokenSecret = []byte("abcdefghijABCDEFGHIJabcdefghijXY")
 
 	mmtoken, err := up.newAuthToken("01234567890123456789012345", "secret_0")
 	require.Nil(t, err)

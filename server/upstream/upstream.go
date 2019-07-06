@@ -4,6 +4,7 @@
 package upstream
 
 import (
+	"crypto/rsa"
 	"net/url"
 	"path"
 	"strings"
@@ -17,15 +18,29 @@ import (
 
 var ErrWrongUpstreamType = errors.New("wrong upstream type")
 
-type Upstream interface {
-	UserStore
+type Config struct {
+	KVStore              kvstore.KVStore
+	API                  plugin.API
+	PluginKey            string
+	ProxyRSAPrivateKey   *rsa.PrivateKey
+	ProxyAuthTokenSecret []byte
+}
 
+type UpstreamContext struct {
+	Config
+}
+
+type Upstream interface {
+	Context() *UpstreamContext
+	URL() string
 	Key() string
 	Type() string
 
+	UserStore
+
 	DisplayFields() map[string]interface{}
 	GetClient(string, User) (*jira.Client, error)
-	GetUserConnectURL(ots kvstore.KVStore, pluginURL string, mattermostUserId string) (string, error)
+	GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
 }
 
 type Unmarshaller interface {
@@ -50,29 +65,38 @@ type UpstreamStore interface {
 }
 
 type Basic struct {
-	UpstreamKey  string `json:"Key"`
-	UpstreamType string `json:"Type"`
-	kv           kvstore.KVStore
-	api          plugin.API
+	UpstreamContext `json:"-"`
+	UpstreamKey     string `json:"Key"`
+	UpstreamType    string `json:"Type"`
 }
 
 var _ Upstream = (*Basic)(nil)
 
-func NewBasic(key, typ string, api plugin.API, kv kvstore.KVStore) Basic {
+func NewBasic(key, typ string, conf Config) Basic {
 	return Basic{
+		UpstreamContext: UpstreamContext{
+			Config: conf,
+		},
 		UpstreamKey:  key,
 		UpstreamType: typ,
-		api:          api,
-		kv:           kv,
 	}
 }
 
-func (up Basic) Key() string {
+func (up Basic) Context() *UpstreamContext {
+	return &up.UpstreamContext
+}
+
+// By default, assume that the Key is the URL
+func (up Basic) URL() string {
 	return up.UpstreamKey
 }
 
 func (up Basic) Type() string {
 	return up.UpstreamType
+}
+
+func (up Basic) Key() string {
+	return up.UpstreamKey
 }
 
 func (up Basic) DisplayFields() map[string]interface{} {
@@ -83,7 +107,7 @@ func (up Basic) GetClient(string, User) (*jira.Client, error) {
 	return nil, errors.New("API not available")
 }
 
-func (up Basic) GetUserConnectURL(ots kvstore.KVStore, pluginURL string, mattermostUserId string) (string, error) {
+func (up Basic) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
 	return "", nil
 }
 

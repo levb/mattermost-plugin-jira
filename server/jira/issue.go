@@ -110,7 +110,7 @@ func createIssue(
 
 	// Reply to the post with the issue link that was created
 	replyPost := &model.Post{
-		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", up.Config().URL, createdIssue.Key),
+		Message:   fmt.Sprintf("Created a Jira issue %v/browse/%v", up.URL(), createdIssue.Key),
 		ChannelId: channelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -201,7 +201,7 @@ func attachCommentToIssue(api mmplugin.API, siteURL string, jiraClient *jira.Cli
 	// Reply to the post with the issue link that was created
 	reply := &model.Post{
 		Message: fmt.Sprintf("Message attached to [%v](%v/browse/%v)",
-			req.IssueKey, up.Config().URL, req.IssueKey),
+			req.IssueKey, up.URL(), req.IssueKey),
 		ChannelId: post.ChannelId,
 		RootId:    rootId,
 		ParentId:  parentId,
@@ -275,6 +275,6 @@ func transitionIssue(jiraClient *jira.Client, up upstream.Upstream, issueKey, to
 		return "", err
 	}
 
-	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, up.Config().URL, issueKey, transitionToUse.To.Name)
+	msg := fmt.Sprintf("[%s](%v/browse/%v) transitioned to `%s`", issueKey, up.URL(), issueKey, transitionToUse.To.Name)
 	return msg, nil
 }

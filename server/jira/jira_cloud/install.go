@@ -10,7 +10,6 @@ import (
 	"net/http"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/plugin"
 	"github.com/pkg/errors"
@@ -18,7 +17,7 @@ import (
 
 func processInstalled(
 	api plugin.API,
-	upstore upstream.Store,
+	upstore upstream.UpstreamStore,
 	ots kvstore.OneTimeStore,
 	authTokenSecret []byte,
 	body io.Reader) (int, error) {
@@ -47,11 +46,11 @@ func processInstalled(
 	up := newUpstream(upstore, string(data), &asc)
 
 	// UpstreamStore.Store also updates the list of known Jira upstreams
-	err = upstore.Store(up)
+	err = upstore.StoreUpstream(up)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
-	err = proxy.StoreCurrentUpstreamNotify(api, upstore, up)
+	err = upstore.StoreCurrentUpstreamNotify(up)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

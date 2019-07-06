@@ -11,6 +11,7 @@ import (
 	"net/url"
 
 	gojira "github.com/andygrunwald/go-jira"
+	"github.com/pkg/errors"
 	ajwt "github.com/rbriski/atlassian-jwt"
 	oauth2_jira "golang.org/x/oauth2/jira"
 
@@ -21,8 +22,8 @@ import (
 
 const Type = "cloud"
 
-type Upstream struct {
-	upstream.BasicUpstream
+type cloudUpstream struct {
+	upstream.Basic
 
 	// For cloud instances (atlassian-connect.json install and user auth)
 	RawAtlassianSecurityContext string
@@ -46,24 +47,45 @@ type atlassianSecurityContext struct {
 	OAuthClientId  string `json:"oauthClientId"`
 }
 
-func newUpstream(upStore upstream.Store, rawASC string,
+func newUpstream(upstore upstream.UpstreamStore, rawASC string,
 	asc *atlassianSecurityContext) upstream.Upstream {
 
-	conf := upstream.UpstreamConfig{
-		StoreConfig: *(upStore.Config()),
-		Key:         asc.BaseURL,
-		URL:         asc.BaseURL,
-		Type:        Type,
-	}
-
-	return &Upstream{
-		BasicUpstream:               upStore.MakeBasicUpstream(conf),
+	return &cloudUpstream{
+		Basic:                       upstore.MakeBasicUpstream(asc.BaseURL, Type),
 		RawAtlassianSecurityContext: rawASC,
 		atlassianSecurityContext:    asc,
 	}
 }
 
-func (up Upstream) GetDisplayDetails() map[string]string {
+func (up cloudUpstream) URL() string {
+	return up.atlassianSecurityContext.BaseURL
+}
+
+func (up cloudUpstream) LoadUser(mattermostUserId string) (upstream.User, error) {
+	data, err := up.LoadUserRaw(mattermostUserId)
+	if err != nil {
+		return nil, err
+	}
+
+	u := jira.User{}
+	err = json.Unmarshal(data, &u)
+	if err != nil {
+		return nil, err
+	}
+	if u.BasicUser.MUserId == "" {
+		u.BasicUser.MUserId = mattermostUserId
+	} else if u.BasicUser.MUserId != mattermostUserId {
+		return nil, errors.Errorf(
+			"stored user id %q did not match the current user id: %q", u.BasicUser.MUserId, mattermostUserId)
+	}
+
+	if u.BasicUser.UUserId == "" {
+		u.BasicUser.UUserId = u.JiraUser.Name
+	}
+	return &u, nil
+}
+
+func (up cloudUpstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
 		"Key":            up.atlassianSecurityContext.Key,
 		"ClientKey":      up.atlassianSecurityContext.ClientKey,
@@ -72,7 +94,7 @@ func (up Upstream) GetDisplayDetails() map[string]string {
 	}
 }
 
-func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
+func (up cloudUpstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	pluginURL, mattermostUserId string) (string, error) {
 
 	randomBytes := make([]byte, 32)
@@ -93,18 +115,18 @@ func (up Upstream) GetUserConnectURL(otsStore kvstore.OneTimeStore,
 	v := url.Values{}
 	v.Add(argMMToken, token)
 	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
-		up.Config().URL,
-		up.Config().URL,
+		up.URL(),
+		up.URL(),
 		up.atlassianSecurityContext.Key,
 		userLandingPageKey,
 		v.Encode(),
 	), nil
 }
 
-func (up Upstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
+func (up cloudUpstream) GetClient(pluginURL string, user upstream.User) (*gojira.Client, error) {
 
 	oauth2Conf := oauth2_jira.Config{
-		BaseURL: up.Config().URL,
+		BaseURL: up.atlassianSecurityContext.BaseURL,
 		Subject: user.UpstreamUserId(),
 	}
 
@@ -120,7 +142,7 @@ func (up Upstream) GetClient(pluginURL string, user upstream.User) (*gojira.Clie
 }
 
 // Creates a "bot" client with a JWT
-func (up Upstream) getClientForServer() (*gojira.Client, error) {
+func (up cloudUpstream) getClientForServer() (*gojira.Client, error) {
 	jwtConf := &ajwt.Config{
 		Key:          up.atlassianSecurityContext.Key,
 		ClientKey:    up.atlassianSecurityContext.ClientKey,
@@ -136,20 +158,24 @@ type unmarshaller struct{}
 // Unmarshaller unmarshals Jira Cloud entities from JSON
 var Unmarshaller upstream.Unmarshaller = unmarshaller{}
 
-func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
-	up := Upstream{}
+func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.Basic) (upstream.Upstream, error) {
+	up := cloudUpstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	up.BasicUpstream = basicUp
+	up.Basic = basicUp
 
 	asc := atlassianSecurityContext{}
 	err = json.Unmarshal([]byte(up.RawAtlassianSecurityContext), &asc)
 	up.atlassianSecurityContext = &asc
 
-	up.Config().Key = up.atlassianSecurityContext.BaseURL
-	up.Config().URL = up.atlassianSecurityContext.BaseURL
+	if up.Basic.UpstreamType == "" {
+		up.Basic.UpstreamType = Type
+	} else if up.Basic.UpstreamType != Type {
+		return nil, errors.Errorf(
+			"attempted to load upstream type %q as a %q", up.Basic.UpstreamType, Type)
+	}
 	return &up, nil
 }
 

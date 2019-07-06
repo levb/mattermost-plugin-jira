@@ -39,9 +39,10 @@ type Proxy interface {
 }
 
 type proxy struct {
-	context      Context
-	actionConfig action.Config
-	upstreamKV   kvstore.KVStore
+	context        Context
+	actionConfig   action.Config
+	upstreamConfig upstream.Config
+	upstreamKV     kvstore.KVStore
 }
 
 func MakeProxy(config Config, actionConfig action.Config) (Proxy, error) {

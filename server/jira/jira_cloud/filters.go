@@ -15,7 +15,7 @@ func RequireUpstream(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	up, ok := a.Context().Upstream.(*Upstream)
+	up, ok := a.Context().Upstream.(*cloudUpstream)
 	if !ok {
 		return a.RespondError(http.StatusInternalServerError, errors.Errorf(
 			"Jira Cloud upstream required, got %T", a.Context().Upstream))
@@ -33,7 +33,7 @@ func RequireJWT(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	cloudUp, _ := ac.Upstream.(*Upstream)
+	up := ac.Upstream.(*cloudUpstream)
 
 	tokenString := a.FormValue("jwt")
 	if tokenString == "" {
@@ -47,7 +47,7 @@ func RequireJWT(a action.Action) error {
 				"unsupported signing method: %v", token.Header["alg"])
 		}
 		// HMAC secret is a []byte
-		return []byte(cloudUp.atlassianSecurityContext.SharedSecret), nil
+		return []byte(up.atlassianSecurityContext.SharedSecret), nil
 	})
 	if err != nil || !token.Valid {
 		return a.RespondError(http.StatusUnauthorized, err,

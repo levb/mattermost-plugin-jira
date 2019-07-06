@@ -98,7 +98,7 @@ func httpInstalled(a action.Action) error {
 	r := http_action.Request(a)
 
 	status, err := processInstalled(ac.API, ac.UpstreamStore, ac.OneTimeStore,
-		ac.AuthTokenSecret, r.Body)
+		ac.ProxyAuthTokenSecret, r.Body)
 	if err != nil {
 		return a.RespondError(status, err,
 			"failed to process atlassian-connect installed event")
@@ -132,12 +132,12 @@ func httpConnectConfirm(a action.Action) error {
 
 func httpConnect(a action.Action) error {
 	ac := a.Context()
+	up := ac.Upstream.(*cloudUpstream)
 	u, secret, err := userFromTokens(a)
 	if err != nil {
 		return err
 	}
-	status, err := processUserConnected(ac.API, ac.Upstream, ac.OneTimeStore,
-		u, secret, ac.MattermostUserId)
+	status, err := processUserConnected(up, ac.OneTimeStore, u, secret, ac.MattermostUserId)
 	if err != nil {
 		a.RespondError(status, err)
 	}
@@ -152,7 +152,7 @@ func httpDisconnect(a action.Action) error {
 	if err != nil {
 		return err
 	}
-	status, err := processUserDisconnected(ac.API, ac.Upstream, ac.UpstreamUser)
+	status, err := processUserDisconnected(ac.Upstream, ac.UpstreamUser)
 	if err != nil {
 		a.RespondError(status, err)
 	}
@@ -188,7 +188,7 @@ func respondConnectTemplate(a action.Action, u *jira.User) error {
 func userFromTokens(a action.Action) (*jira.User, string, error) {
 	ac := a.Context()
 	mmtoken := a.FormValue(argMMToken)
-	up := ac.Upstream.(*Upstream)
+	up := ac.Upstream.(*cloudUpstream)
 
 	juser := jira.JiraUser{
 		AccountID:   ac.UpstreamJWTAccountId,

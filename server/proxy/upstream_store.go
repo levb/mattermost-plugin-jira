@@ -12,7 +12,7 @@ import (
 )
 
 func (p proxy) MakeBasicUpstream(key, typ string) upstream.Basic {
-	return upstream.NewBasic(key, typ, p.context.API, p.context.KVStore)
+	return upstream.NewBasic(key, typ, p.upstreamConfig)
 }
 
 func (p proxy) LoadUpstream(key string) (upstream.Upstream, error) {
@@ -41,7 +41,7 @@ func (p proxy) loadUpstream(dataf func() ([]byte, error)) (upstream.Upstream, er
 
 	// Unmarshal into any of the types just so that we can get the common data
 	// Inherit the environment from the proxy, JSON will not overwrite it
-	basic := upstream.NewBasic("", "", p.context.API, p.context.KVStore)
+	basic := upstream.NewBasic("", "", p.upstreamConfig)
 	err = json.Unmarshal(data, &basic)
 	if err != nil {
 		return nil, err

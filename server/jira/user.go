@@ -78,14 +78,14 @@ type GetUserInfoResponse struct {
 	UpstreamURL    string                `json:"jira_url,omitempty"`
 }
 
-func getUserInfo(upstore upstream.Store, mattermostUserId string) GetUserInfoResponse {
+func getUserInfo(upstore upstream.UpstreamStore, mattermostUserId string) GetUserInfoResponse {
 	resp := GetUserInfoResponse{}
-	up, err := upstore.LoadCurrent()
+	up, err := upstore.LoadCurrentUpstream()
 	if err != nil {
 		return resp
 	}
 	resp.HasUpstream = true
-	resp.UpstreamURL = up.Config().URL
+	resp.UpstreamURL = up.URL()
 	u, err := up.LoadUser(mattermostUserId)
 	if err == nil {
 		resp.IsConnected = true

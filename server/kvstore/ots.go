@@ -10,9 +10,7 @@ import (
 )
 
 // OneTimeStore is a KV store that deletes each record after the first load,
-type OneTimeStore interface {
-	KVStore
-}
+type OneTimeStore KVStore
 
 type ots struct {
 	KVStore

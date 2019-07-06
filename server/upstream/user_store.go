@@ -22,6 +22,8 @@ const (
 type UserStore interface {
 	StoreUser(User) error
 	DeleteUser(User) error
+	StoreUserNotify(User) error
+	DeleteUserNotify(User) error
 	LoadUser(mattermostUserId string) (User, error)
 	LoadMattermostUserId(upstreamUserId string) (string, error)
 }
@@ -29,12 +31,13 @@ type UserStore interface {
 func (up Basic) StoreUser(u User) error {
 	mmkey := up.userkey(u.MattermostUserId())
 	upkey := up.userkey(u.UpstreamUserId())
+	kv := up.Context().KVStore
 
-	err := kvstore.StoreJSON(up.kv, mmkey, u)
+	err := kvstore.StoreJSON(kv, mmkey, u)
 	if err != nil {
 		return err
 	}
-	err = kvstore.StoreJSON(up.kv, upkey, u.MattermostUserId())
+	err = kvstore.StoreJSON(kv, upkey, u.MattermostUserId())
 	if err != nil {
 		return err
 	}
@@ -43,7 +46,8 @@ func (up Basic) StoreUser(u User) error {
 
 func (up Basic) LoadUserRaw(mattermostUserId string) ([]byte, error) {
 	mmkey := up.userkey(mattermostUserId)
-	return up.kv.Load(mmkey)
+	kv := up.Context().KVStore
+	return kv.Load(mmkey)
 }
 
 func (up Basic) LoadUser(mattermostUserId string) (User, error) {
@@ -68,7 +72,9 @@ func (up Basic) LoadUser(mattermostUserId string) (User, error) {
 func (up Basic) LoadMattermostUserId(upstreamUserId string) (string, error) {
 	upkey := up.userkey(upstreamUserId)
 	mattermostUserId := ""
-	err := kvstore.LoadJSON(up.kv, upkey, &mattermostUserId)
+	kv := up.Context().KVStore
+
+	err := kvstore.LoadJSON(kv, upkey, &mattermostUserId)
 	if err != nil {
 		return "", err
 	}
@@ -78,11 +84,12 @@ func (up Basic) LoadMattermostUserId(upstreamUserId string) (string, error) {
 func (up Basic) DeleteUser(u User) error {
 	mmkey := up.userkey(u.MattermostUserId())
 	upkey := up.userkey(u.UpstreamUserId())
-	err := up.kv.Delete(mmkey)
+	kv := up.Context().KVStore
+	err := kv.Delete(mmkey)
 	if err != nil {
 		return err
 	}
-	err = up.kv.Delete(upkey)
+	err = kv.Delete(upkey)
 	if err != nil {
 		return err
 	}
@@ -101,7 +108,7 @@ func (up Basic) StoreUserNotify(u User) error {
 		return err
 	}
 
-	up.api.PublishWebSocketEvent(
+	up.Context().API.PublishWebSocketEvent(
 		WebsocketEventConnect,
 		map[string]interface{}{
 			"is_connected": true,
@@ -118,7 +125,7 @@ func (up Basic) DeleteUserNotify(u User) error {
 		return err
 	}
 
-	up.api.PublishWebSocketEvent(
+	up.Context().API.PublishWebSocketEvent(
 		WebsocketEventDisconnect,
 		map[string]interface{}{
 			"is_connected": false,

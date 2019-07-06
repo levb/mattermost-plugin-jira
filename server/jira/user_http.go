@@ -58,7 +58,7 @@ func connectUser(a action.Action) error {
 
 func disconnectUser(a action.Action) error {
 	ac := a.Context()
-	err := proxy.DeleteUserNotify(ac.API, ac.Upstream, ac.UpstreamUser)
+	err := ac.Upstream.DeleteUserNotify(ac.UpstreamUser)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}

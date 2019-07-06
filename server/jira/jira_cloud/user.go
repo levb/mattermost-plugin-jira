@@ -17,9 +17,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
-	"github.com/mattermost/mattermost-server/plugin"
 )
 
 const authTokenTTL = 15 * time.Minute
@@ -30,7 +28,7 @@ type authToken struct {
 	Expires          time.Time `json:"expires,omitempty"`
 }
 
-func (up Upstream) newAuthToken(mattermostUserID,
+func (up cloudUpstream) newAuthToken(mattermostUserID,
 	secret string) (returnToken string, returnErr error) {
 
 	t := authToken{
@@ -44,7 +42,7 @@ func (up Upstream) newAuthToken(mattermostUserID,
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
 
-	encrypted, err := encrypt(jsonBytes, up.Config().AuthTokenSecret)
+	encrypted, err := encrypt(jsonBytes, up.Context().ProxyAuthTokenSecret)
 	if err != nil {
 		return "", errors.WithMessage(err, "NewAuthToken failed")
 	}
@@ -52,9 +50,8 @@ func (up Upstream) newAuthToken(mattermostUserID,
 	return encode(encrypted)
 }
 
-func processUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore.OneTimeStore,
+func processUserConnected(up upstream.Upstream, ots kvstore.OneTimeStore,
 	tokenUser *jira.User, tokenSecret string, mattermostUserId string) (int, error) {
-	up := cloudup.(*Upstream)
 
 	storedSecret, err := ots.Load(mattermostUserId)
 	if err != nil {
@@ -64,7 +61,7 @@ func processUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore
 		return http.StatusUnauthorized, errors.New("this link has already been used")
 	}
 
-	err = proxy.StoreUserNotify(api, up, tokenUser)
+	err = up.StoreUserNotify(tokenUser)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -72,10 +69,8 @@ func processUserConnected(api plugin.API, cloudup upstream.Upstream, ots kvstore
 	return http.StatusOK, nil
 }
 
-func processUserDisconnected(api plugin.API, cloudup upstream.Upstream, user upstream.User) (int, error) {
-	up := cloudup.(*Upstream)
-
-	err := proxy.DeleteUserNotify(api, up, user)
+func processUserDisconnected(up upstream.Upstream, user upstream.User) (int, error) {
+	err := up.DeleteUserNotify(user)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
@@ -83,7 +78,7 @@ func processUserDisconnected(api plugin.API, cloudup upstream.Upstream, user ups
 	return http.StatusOK, nil
 }
 
-func (up Upstream) parseAuthToken(encoded string) (string, string, error) {
+func (up cloudUpstream) parseAuthToken(encoded string) (string, string, error) {
 	t := authToken{}
 	err := func() error {
 		decoded, err := decode(encoded)
@@ -91,7 +86,7 @@ func (up Upstream) parseAuthToken(encoded string) (string, string, error) {
 			return err
 		}
 
-		jsonBytes, err := decrypt(decoded, up.Config().AuthTokenSecret)
+		jsonBytes, err := decrypt(decoded, up.Context().ProxyAuthTokenSecret)
 		if err != nil {
 			return err
 		}

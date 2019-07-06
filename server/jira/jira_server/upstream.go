@@ -22,23 +22,42 @@ import (
 const Type = "server"
 
 type serverUpstream struct {
-	upstream.BasicUpstream
+	upstream.Basic
 }
 
-func newUpstream(upstore upstream.Store, jiraURL string) upstream.Upstream {
+func newUpstream(upstore upstream.UpstreamStore, jiraURL string) upstream.Upstream {
 	return &serverUpstream{
-		BasicUpstream: upstore.MakeBasicUpstream(upstream.UpstreamConfig{
-			StoreConfig: *(upstore.Config()),
-			Key:         jiraURL,
-			URL:         jiraURL,
-			Type:        Type,
-		}),
+		Basic: upstore.MakeBasicUpstream(jiraURL, Type),
 	}
+}
+
+func (up serverUpstream) LoadUser(mattermostUserId string) (upstream.User, error) {
+	data, err := up.LoadUserRaw(mattermostUserId)
+	if err != nil {
+		return nil, err
+	}
+
+	u := user{}
+	err = json.Unmarshal(data, &u)
+	if err != nil {
+		return nil, err
+	}
+	if u.BasicUser.MUserId == "" {
+		u.BasicUser.MUserId = mattermostUserId
+	} else if u.BasicUser.MUserId != mattermostUserId {
+		return nil, errors.Errorf(
+			"stored user id %q did not match the current user id: %q", u.BasicUser.MUserId, mattermostUserId)
+	}
+
+	if u.BasicUser.UUserId == "" {
+		u.BasicUser.UUserId = u.JiraUser.Name
+	}
+	return &u, nil
 }
 
 func (up serverUpstream) GetDisplayDetails() map[string]string {
 	return map[string]string{
-		"pluginKey": up.Config().PluginKey,
+		"pluginKey": up.Context().PluginKey,
 	}
 }
 
@@ -99,7 +118,7 @@ func (up serverUpstream) GetClient(pluginURL string,
 
 	token := oauth1.NewToken(user.Oauth1AccessToken, user.Oauth1AccessSecret)
 	httpClient := oauth1Config.Client(oauth1.NoContext, token)
-	jiraClient, err := gojira.NewClient(httpClient, up.Config().URL)
+	jiraClient, err := gojira.NewClient(httpClient, up.URL())
 	if err != nil {
 		return nil, err
 	}
@@ -109,20 +128,20 @@ func (up serverUpstream) GetClient(pluginURL string,
 
 func (up serverUpstream) getOAuth1Config(pluginURL string) (*oauth1.Config, error) {
 	return &oauth1.Config{
-		ConsumerKey:    up.Config().PluginKey,
+		ConsumerKey:    up.Context().PluginKey,
 		ConsumerSecret: "dontcare",
 		CallbackURL:    pluginURL + "/" + routeOAuth1Complete,
 		Endpoint: oauth1.Endpoint{
-			RequestTokenURL: up.Config().URL + "/plugins/servlet/oauth/request-token",
-			AuthorizeURL:    up.Config().URL + "/plugins/servlet/oauth/authorize",
-			AccessTokenURL:  up.Config().URL + "/plugins/servlet/oauth/access-token",
+			RequestTokenURL: up.URL() + "/plugins/servlet/oauth/request-token",
+			AuthorizeURL:    up.URL() + "/plugins/servlet/oauth/authorize",
+			AccessTokenURL:  up.URL() + "/plugins/servlet/oauth/access-token",
 		},
-		Signer: &oauth1.RSASigner{PrivateKey: up.Config().RSAPrivateKey},
+		Signer: &oauth1.RSASigner{PrivateKey: up.Context().ProxyRSAPrivateKey},
 	}, nil
 }
 
 func publicKeyString(up upstream.Upstream) ([]byte, error) {
-	b, err := x509.MarshalPKIXPublicKey(&up.Config().RSAPrivateKey.PublicKey)
+	b, err := x509.MarshalPKIXPublicKey(&up.Context().ProxyRSAPrivateKey.PublicKey)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to encode public key")
 	}
@@ -151,27 +170,12 @@ type unmarshaller struct{}
 
 var Unmarshaller upstream.Unmarshaller = unmarshaller{}
 
-func (_ unmarshaller) UnmarshalUser(data []byte, defaultId string) (upstream.User, error) {
-	u := user{}
-	err := json.Unmarshal(data, &u)
-	if err != nil {
-		return nil, err
-	}
-	if u.BasicUser.MUserId == "" {
-		u.BasicUser.MUserId = defaultId
-	}
-	if u.BasicUser.UUserId == "" {
-		u.BasicUser.UUserId = u.JiraUser.Name
-	}
-	return &u, nil
-}
-
-func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
+func (_ unmarshaller) UnmarshalUpstream(data []byte, basicUp upstream.Basic) (upstream.Upstream, error) {
 	up := serverUpstream{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	up.BasicUpstream = basicUp
+	up.Basic = basicUp
 	return &up, nil
 }
