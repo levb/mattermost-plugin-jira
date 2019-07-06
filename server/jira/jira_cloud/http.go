@@ -88,7 +88,7 @@ func httpInstallJSON(a action.Action) error {
 			"RouteACUninstalled":  routeUninstalled,
 			"RouteACUserRedirect": routeConnectRedirect,
 			"UserLandingPageKey":  userLandingPageKey,
-			"ExternalURL":         ac.MattermostSiteURL,
+			"ExternalURL":         ac.PluginSiteURL,
 			"PluginKey":           ac.PluginKey,
 		})
 }

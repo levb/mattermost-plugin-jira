@@ -24,7 +24,7 @@ var CommandRoutes = map[string]*action.Route{
 
 func commandWebhookURL(a action.Action) error {
 	ac := a.Context()
-	u, err := getWebhookURL(ac.API, ac.PluginURL, ac.WebhookSecret, ac.MattermostTeamId, ac.MattermostChannelId)
+	u, err := getWebhookURL(ac.API, ac.PluginURL, ac.PluginWebhookSecret, ac.MattermostTeamId, ac.MattermostChannelId)
 	if err != nil {
 		return a.RespondError(0, err)
 	}

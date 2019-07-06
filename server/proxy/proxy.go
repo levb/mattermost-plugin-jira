@@ -5,18 +5,20 @@ package proxy
 
 import (
 	"crypto/rsa"
+	"net/http"
 	"text/template"
+
+	"github.com/mattermost/mattermost-server/model"
+	"github.com/mattermost/mattermost-server/plugin"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
-	"github.com/mattermost/mattermost-server/plugin"
 )
 
 type Config struct {
 	API           plugin.API
 	KVStore       kvstore.KVStore
-	OneTimeStore  kvstore.KVStore
 	Templates     map[string]*template.Template
 	Unmarshallers map[string]upstream.Unmarshaller
 }
@@ -33,9 +35,8 @@ type Proxy interface {
 
 	upstream.UpstreamStore
 
-	// RunHTTP() error
-	// RunCommand() error
-
+	RunHTTP(*plugin.Context, http.ResponseWriter, *http.Request) error
+	RunCommand(*plugin.Context, *model.CommandArgs) (*model.CommandResponse, error)
 }
 
 type proxy struct {
@@ -69,4 +70,14 @@ func MakeProxy(config Config, actionConfig action.Config) (Proxy, error) {
 
 func (p proxy) Context() *Context {
 	return &p.context
+}
+
+func (p proxy) RunHTTP(*plugin.Context, http.ResponseWriter, *http.Request) error {
+	// TODO
+	return nil
+}
+
+func (p proxy) RunCommand(*plugin.Context, *model.CommandArgs) (*model.CommandResponse, error) {
+	// TODO
+	return &model.CommandResponse{}, nil
 }

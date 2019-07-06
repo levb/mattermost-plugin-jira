@@ -78,7 +78,7 @@ func (a *Action) RespondRedirect(redirectURL string) error {
 }
 
 func (a *Action) RespondTemplate(templateKey, contentType string, values interface{}) error {
-	templates := a.Context().Templates
+	templates := a.Context().PluginTemplates
 	if len(templates) == 0 || templates[templateKey] == nil {
 		return a.RespondError(http.StatusInternalServerError, nil,
 			"no template found for %q", templateKey)

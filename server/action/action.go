@@ -6,7 +6,7 @@ package action
 import (
 	"crypto/rsa"
 	"fmt"
-	"html/template"
+	"text/template"
 
 	"github.com/pkg/errors"
 
@@ -20,30 +20,33 @@ import (
 )
 
 type Config struct {
-	API                  plugin.API
-	UpstreamStore        upstream.UpstreamStore
-	PluginContext        *plugin.Context
-	Templates            map[string]*template.Template
-	OneTimeStore         kvstore.OneTimeStore
+	OneTimeStore  kvstore.OneTimeStore
+	UpstreamStore upstream.UpstreamStore
+	Upstream      upstream.Upstream
+
+	// Set by the plugin
 	BotIconURL           string
 	BotUserId            string
 	BotUserName          string
-	WebhookSecret        string
 	EnableJiraUI         bool
-	MattermostUser       *model.User
-	Upstream             upstream.Upstream
+	API                  plugin.API
+	PluginId             string
+	PluginVersion        string
+	PluginKey            string
+	PluginSiteURL        string
+	PluginTemplates      map[string]*template.Template
 	PluginURL            string
 	PluginURLPath        string
-	PluginId             string
-	PluginKey            string
-	ProxyRSAPrivateKey   *rsa.PrivateKey
 	ProxyAuthTokenSecret []byte
-	MattermostSiteURL    string
+	ProxyRSAPrivateKey   *rsa.PrivateKey
+	PluginWebhookSecret  string
 }
 
 type Context struct {
 	Config
+	PluginContext *plugin.Context
 
+	MattermostUser      *model.User
 	MattermostUserId    string
 	MattermostTeamId    string
 	MattermostChannelId string

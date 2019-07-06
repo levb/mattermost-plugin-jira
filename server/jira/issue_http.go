@@ -63,7 +63,7 @@ func httpCreateIssue(a action.Action) error {
 	if err != nil {
 		return a.RespondError(http.StatusBadRequest, err, "failed to decode create issue request")
 	}
-	issue, status, err := createIssue(ac.API, ac.MattermostSiteURL, ac.JiraClient,
+	issue, status, err := createIssue(ac.API, ac.PluginSiteURL, ac.JiraClient,
 		ac.Upstream, ac.MattermostUserId, &req)
 	if err != nil {
 		return a.RespondError(status, err, "failed to create issue")
@@ -98,7 +98,7 @@ func httpAttachCommentToIssue(a action.Action) error {
 	if err != nil {
 		return a.RespondError(http.StatusBadRequest, err, "failed to decode attach comment to issue request")
 	}
-	comment, status, err := attachCommentToIssue(ac.API, ac.MattermostSiteURL, ac.JiraClient,
+	comment, status, err := attachCommentToIssue(ac.API, ac.PluginSiteURL, ac.JiraClient,
 		ac.Upstream, ac.MattermostUserId, req, ac.UpstreamUser)
 	if err != nil {
 		return a.RespondError(status, err, "failed to attach comment to issue")

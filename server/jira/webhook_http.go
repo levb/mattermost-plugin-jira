@@ -67,7 +67,7 @@ func processLegacyWebhook(a action.Action) error {
 	ac := a.Context()
 	r := http_action.Request(a)
 
-	if ac.WebhookSecret == "" {
+	if ac.PluginWebhookSecret == "" {
 		return a.RespondError(http.StatusInternalServerError, nil,
 			"webhook secret not configured")
 	}
@@ -76,7 +76,7 @@ func processLegacyWebhook(a action.Action) error {
 	// secret may be URL-escaped, potentially more than once. Loop until there
 	// are no % escapes left.
 	for {
-		if subtle.ConstantTimeCompare([]byte(secret), []byte(ac.WebhookSecret)) == 1 {
+		if subtle.ConstantTimeCompare([]byte(secret), []byte(ac.PluginWebhookSecret)) == 1 {
 			break
 		}
 

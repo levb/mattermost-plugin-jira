@@ -11,7 +11,6 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/action"
 	"github.com/mattermost/mattermost-plugin-jira/server/action/command_action"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/proxy"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 )
 
@@ -26,7 +25,7 @@ func commandConnect(a action.Action) error {
 
 func commandDisconnect(a action.Action) error {
 	ac := a.Context()
-	err := proxy.DeleteUserNotify(ac.API, ac.Upstream, ac.UpstreamUser)
+	err := ac.Upstream.DeleteUserNotify(ac.UpstreamUser)
 	if err != nil {
 		return a.RespondError(0, err, "Could not complete the **disconnection** request")
 	}
@@ -61,7 +60,7 @@ func commandSettingsNotifications(a action.Action) error {
 
 func commandUpstreamList(a action.Action) error {
 	ac := a.Context()
-	known, err := ac.UpstreamStore.LoadKnown()
+	known, err := ac.UpstreamStore.LoadKnownUpstreams()
 	if err != nil {
 		return a.RespondError(0, err)
 	}
@@ -70,7 +69,7 @@ func commandUpstreamList(a action.Action) error {
 	}
 
 	// error not important here, only need to highlight thee current in the list
-	currentUp, _ := ac.UpstreamStore.LoadCurrent()
+	currentUp, _ := ac.UpstreamStore.LoadCurrentUpstream()
 
 	keys := []string{}
 	for key := range known {
@@ -79,22 +78,22 @@ func commandUpstreamList(a action.Action) error {
 	sort.Strings(keys)
 	text := "Known Jira instances (selected upstream is **bold**)\n\n| |URL|Type|\n|--|--|--|\n"
 	for i, key := range keys {
-		up, err := ac.UpstreamStore.Load(key)
+		up, err := ac.UpstreamStore.LoadUpstream(key)
 		if err != nil {
 			text += fmt.Sprintf("|%v|%s|error: %v|\n", i+1, key, err)
 			continue
 		}
 		details := ""
-		for k, v := range up.DisplayDetails() {
+		for k, v := range up.DisplayFields() {
 			details += fmt.Sprintf("%s:%s, ", k, v)
 		}
 		if len(details) > len(", ") {
 			details = details[:len(details)-2]
 		} else {
-			details = up.Config().Type
+			details = up.Type()
 		}
 		format := "|%v|%s|%s|\n"
-		if currentUp != nil && key == currentUp.Config().Key {
+		if currentUp != nil && key == currentUp.Key() {
 			format = "| **%v** | **%s** |%s|\n"
 		}
 		text += fmt.Sprintf(format, i+1, key, details)
@@ -104,7 +103,7 @@ func commandUpstreamList(a action.Action) error {
 
 func commandUpstreamUninstall(a action.Action) error {
 	ac := a.Context()
-	upkey := ac.Upstream.Config().Key
+	upkey := ac.Upstream.Key()
 	upstreamKey := a.FormValue("key")
 	upstreamKey, err := upstream.NormalizeURL(upstreamKey)
 	if err != nil {
@@ -118,7 +117,7 @@ func commandUpstreamUninstall(a action.Action) error {
 			upkey)
 	}
 
-	err = proxy.DeleteUpstreamNotify(ac.API, ac.UpstreamStore, upstreamKey)
+	err = ac.UpstreamStore.DeleteUpstreamNotify(upstreamKey)
 	if err != nil {
 		return a.RespondError(0, err,
 			"Failed to delete Jira instance %s", upstreamKey)
@@ -137,7 +136,7 @@ func commandUpstreamSelect(a action.Action) error {
 	upKey := a.FormValue("key")
 	num, err := strconv.ParseUint(upKey, 10, 8)
 	if err == nil {
-		known, loadErr := ac.UpstreamStore.LoadKnown()
+		known, loadErr := ac.UpstreamStore.LoadKnownUpstreams()
 		if loadErr != nil {
 			return a.RespondError(0, err,
 				"Failed to load known upstreams")
@@ -159,12 +158,12 @@ func commandUpstreamSelect(a action.Action) error {
 	if err != nil {
 		return a.RespondError(0, err)
 	}
-	up, err := ac.UpstreamStore.Load(upKey)
+	up, err := ac.UpstreamStore.LoadUpstream(upKey)
 	if err != nil {
 		return a.RespondError(0, err,
 			"Failed to load upstream %q", upKey)
 	}
-	err = proxy.StoreCurrentUpstreamNotify(ac.API, ac.UpstreamStore, up)
+	err = ac.UpstreamStore.StoreCurrentUpstreamNotify(up)
 	if err != nil {
 		return a.RespondError(0, err,
 			"Failed to store current upstream")

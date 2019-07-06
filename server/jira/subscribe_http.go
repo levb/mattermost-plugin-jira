@@ -38,7 +38,7 @@ func httpSubscribeWebhook(a action.Action) error {
 
 	if subtle.ConstantTimeCompare(
 		[]byte(r.URL.Query().Get("secret")),
-		[]byte(ac.WebhookSecret)) != 1 {
+		[]byte(ac.PluginWebhookSecret)) != 1 {
 		return a.RespondError(http.StatusForbidden, nil,
 			"request URL: secret did not match")
 	}

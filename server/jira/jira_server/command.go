@@ -57,5 +57,5 @@ func commandInstallServer(a action.Action) error {
 			"8. Use the `/jira connect` command to connect your Mattermost account with your Jira account.\n"+
 			"9. Click the **More Actions** (...) option of any message in the channel (available when you hover over a message).\n\n"+
 			"If you see an option to create a Jira issue, you're all set! If not, refer to our [documentation](https://about.mattermost.com/default-jira-plugin) for troubleshooting help.\n",
-		up.URL(), ac.MattermostSiteURL, ac.PluginKey, pkey)
+		up.URL(), ac.PluginSiteURL, ac.PluginKey, pkey)
 }
