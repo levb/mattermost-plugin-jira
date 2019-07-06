@@ -11,4 +11,7 @@ const (
 	KeyCurrentUpstream = "current_jira_instance"
 	KeyKnownUpstreams  = "known_jira_instances"
 	KeyPrefixUpstream  = "jira_instance_"
+
+	KeyTokenSecret   = "token_secret"
+	KeyRSAPrivateKey = "rsa_key"
 )

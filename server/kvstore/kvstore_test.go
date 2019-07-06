@@ -10,11 +10,11 @@ import (
 )
 
 func TestPluginStore(t *testing.T) {
-	testStore(t, "plugin", NewMockedStore())
+	testStore(t, "plugin-", NewMockedStore())
 }
 
 func testStore(t *testing.T, name string, s KVStore) {
-	t.Run(name+": Load-Store-Delete", func(t *testing.T) {
+	t.Run(name+"Load-Store-Delete", func(t *testing.T) {
 		loaded, err := s.Load("key")
 		require.Equal(t, err, ErrNotFound)
 
@@ -36,7 +36,7 @@ func testStore(t *testing.T, name string, s KVStore) {
 		require.Equal(t, err, ErrNotFound)
 	})
 
-	t.Run(name+": Ensure", func(t *testing.T) {
+	t.Run(name+"Ensure", func(t *testing.T) {
 		value, err := Ensure(s, "ensured key", []byte("first value"))
 		require.NoError(t, err)
 		require.Equal(t, []byte("first value"), value)

@@ -78,13 +78,14 @@ func (a *Action) RespondRedirect(redirectURL string) error {
 }
 
 func (a *Action) RespondTemplate(templateKey, contentType string, values interface{}) error {
-	t := a.Context().Templates[templateKey]
-	if t == nil {
+	templates := a.Context().Templates
+	if len(templates) == 0 || templates[templateKey] == nil {
 		return a.RespondError(http.StatusInternalServerError, nil,
 			"no template found for %q", templateKey)
 	}
+
 	a.rw.Header().Set("Content-Type", contentType)
-	err := t.Execute(a.rw, values)
+	err := templates[templateKey].Execute(a.rw, values)
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err,
 			"failed to write response")
@@ -127,8 +128,8 @@ func LogAction(a action.Action) error {
 	switch {
 	case !ok:
 		a.Errorf("http: error: misconfiguration, wrong action type %T", a)
-	case a.Context().LogErr != nil:
-		a.Infof("http: %v %v, error:%v", httpAction.status, httpAction.r.URL, a.Context().LogErr)
+	case a.Context().LogError != nil:
+		a.Infof("http: %v %v, error:%v", httpAction.status, httpAction.r.URL, a.Context().LogError)
 	default:
 		a.Debugf("http: %v %v", httpAction.status, httpAction.r.URL)
 	}

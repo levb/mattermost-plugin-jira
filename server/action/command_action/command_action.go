@@ -195,8 +195,8 @@ func LogAction(a action.Action) error {
 	switch {
 	case !ok:
 		a.Errorf("command: %q error: misconfiguration, wrong Action type", commandAction.commandArgs.Command)
-	case ac.LogErr != nil:
-		a.Infof("command: %q error:%v", commandAction.commandArgs.Command, ac.LogErr)
+	case ac.LogError != nil:
+		a.Infof("command: %q error:%v", commandAction.commandArgs.Command, ac.LogError)
 	default:
 		a.Debugf("command: %q", commandAction.commandArgs.Command)
 	}

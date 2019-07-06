@@ -1,7 +1,8 @@
 // Copyright (c) 2017-present Mattermost, Inc. All Rights Reserved.
 // See License for license information.
 
-package teststore
+package plugin_tests
+
 
 import (
 	"encoding/json"

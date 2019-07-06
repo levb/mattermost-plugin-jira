@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sync"
+	"text/template"
 
 	"github.com/pkg/errors"
 
@@ -22,13 +24,50 @@ import (
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
+var regexpNonAlnum = regexp.MustCompile("[^a-zA-Z0-9]+")
+var regexpUnderlines = regexp.MustCompile("_+")
+
+// MainConfig is the main plugin configuration, stored in the Mattermost config,
+// and updated via Mattermost system console, CLI, or other means
+type MainConfig struct {
+	// Setting to turn on/off the webapp components of this plugin
+	EnableJiraUI bool `json:"enablejiraui"`
+
+	// Bot username
+	BotUserName string `json:"username"`
+
+	// Legacy 1.x Webhook secret
+	WebhookSecret string `json:"secret"`
+}
+
+type Config struct {
+	MainConfig
+	proxyConfig proxy.Config
+	actionConfig action.Config
+}
+
+type SynchronizedConfig struct {
+	Config
+	lock sync.RWMutex
+}
+
+func (c *SynchronizedConfig) GetConfig() Config {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.Config
+}
+
+func (c *SynchronizedConfig) UpdateContext(f func(*Config)) Config {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	f(&c.Config)
+	return c.Config
+}
+
 type Plugin struct {
 	plugin.MattermostPlugin
-
-	context.SynchronizedContext
-
-	Id      string
-	Version string
+	SynchronizedConfig
 }
 
 func (p *Plugin) OnActivate() error {
@@ -38,8 +77,57 @@ func (p *Plugin) OnActivate() error {
 		jira_server.Type: jira_server.Unmarshaller,
 	}
 
-	templatesPath := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory),
-		p.Id, "server", "dist", "templates")
+	// Tests override .Templates
+	if len(p.Templates) == 0 {
+		templatesPath := filepath.Join(*(p.API.GetConfig().PluginSettings.Directory),
+			p.Id, "server", "dist", "templates")
+		templates, err := loadTemplates(templatesPath)
+		if err != nil {
+			return nil, err
+		}
+		p.Templates = templates
+	}
+
+	
+	mattermostSiteURL := *api.GetConfig().ServiceSettings.SiteURL
+	pluginKey := regexpNonAlnum.ReplaceAllString(strings.TrimRight(mattermostSiteURL, "/"), "_")
+	pluginKey = "mattermost_" + regexpUnderlines.ReplaceAllString(pluginKey, "_")
+
+	upstoreConfig := upstream.StoreConfig{
+		RSAPrivateKey:   rsaPrivateKey,
+		AuthTokenSecret: authTokenSecret,
+		PluginKey:       pluginKey,
+	}
+		upstore := upstream.NewStore(api, upstoreConfig, kv, unmarshallers)
+		if err != nil {
+			return nil, err
+		}
+	
+		// HW FUTURE TODO: Better template management, text vs html
+		dir := filepath.Join(templatePath)
+		dir := filepath.Join(bundlePath, "server", "dist", "templates")
+		templates, err := loadTemplates(dir)
+		if err != nil {
+			return nil, errors.WithMessage(err, "failed to load templates")
+		}
+	
+		return func(c *context.Context) {
+			c.StoreConfig = upstoreConfig
+			c.MattermostSiteURL = mattermostSiteURL
+			c.API = api
+			c.UpstreamStore = upstore
+			c.OneTimeStore = ots
+			c.Templates = templates
+			c.PluginId = pluginId
+			c.PluginVersion = pluginVersion
+			c.PluginURLPath = "/plugins/" + pluginId
+			c.PluginURL = strings.TrimRight(c.MattermostSiteURL, "/") + c.PluginURLPath
+		}, nil
+	}
+	
+	
+
+
 	f, err := MakeContext(p.API, kv, unmarshallers, p.Id, p.Version, templatesPath)
 	if err != nil {
 		return errors.WithMessage(err, "OnActivate failed")

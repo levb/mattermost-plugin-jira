@@ -75,7 +75,7 @@ func RequireUpstream(a action.Action) error {
 	if ac.Upstream != nil {
 		return nil
 	}
-	up, err := ac.UpstreamStore.LoadCurrent()
+	up, err := ac.UpstreamStore.LoadCurrentUpstream()
 	if err != nil {
 		return a.RespondError(http.StatusInternalServerError, err)
 	}
@@ -83,6 +83,6 @@ func RequireUpstream(a action.Action) error {
 
 	// Important: overwrite the default UserStore with that where
 	// the keys are prefixed with the instance URL
-	a.Debugf("action: loaded upstream %q", up.Config().Key)
+	a.Debugf("action: loaded upstream %q", up.Key())
 	return nil
 }

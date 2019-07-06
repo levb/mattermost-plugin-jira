@@ -10,9 +10,6 @@ import (
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 )
 
-const StoreKeyTokenSecret = "token_secret"
-const StoreKeyRSAPrivateKey = "rsa_key"
-
 func EnsureRSAPrivateKey(kv kvstore.KVStore) (*rsa.PrivateKey, error) {
 	// Ensure we generate the secrets on first start
 	rsaPrivateKey, err := rsa.GenerateKey(rand.Reader, 1024)
@@ -23,7 +20,7 @@ func EnsureRSAPrivateKey(kv kvstore.KVStore) (*rsa.PrivateKey, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to marshal private key")
 	}
-	newRSAPrivateKeyBytes, err := kvstore.Ensure(kv, StoreKeyRSAPrivateKey, rsaPrivateKeyBytes)
+	newRSAPrivateKeyBytes, err := kvstore.Ensure(kv, kvstore.KeyRSAPrivateKey, rsaPrivateKeyBytes)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to generate private key")
 	}
@@ -42,5 +39,5 @@ func EnsureAuthTokenSecret(kv kvstore.KVStore) ([]byte, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to generate token secret")
 	}
-	return kvstore.Ensure(kv, StoreKeyTokenSecret, secret)
+	return kvstore.Ensure(kv, kvstore.KeyTokenSecret, secret)
 }

@@ -89,14 +89,14 @@ func (router Router) RunRoute(key string, a Action) {
 	if len(router.Before) > 0 {
 		err := router.Before.Run(a)
 		if err != nil {
-			a.Context().LogErr = err
+			a.Context().LogError = err
 			return
 		}
 	}
 
 	err := handler.Run(a)
 	if err != nil {
-		a.Context().LogErr = err
+		a.Context().LogError = err
 	}
 
 	if len(router.After) > 0 {

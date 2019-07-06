@@ -12,48 +12,78 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
+	"github.com/mattermost/mattermost-server/plugin"
 )
 
 var ErrWrongUpstreamType = errors.New("wrong upstream type")
 
-type UpstreamConfig struct {
-	StoreConfig `json:"-"`
-	Key         string
-	URL         string
-	Type        string
-}
-
 type Upstream interface {
-	Config() *UpstreamConfig
-	StoreUser(User) error
-	DeleteUser(User) error
-	LoadUser(mattermostUserId string) (User, error)
-	LoadMattermostUserId(upstreamUserId string) (string, error)
+	UserStore
 
-	DisplayDetails() map[string]string
+	Key() string
+	Type() string
+
+	DisplayFields() map[string]interface{}
 	GetClient(string, User) (*jira.Client, error)
-	GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error)
+	GetUserConnectURL(ots kvstore.KVStore, pluginURL string, mattermostUserId string) (string, error)
 }
 
-type BasicUpstream struct {
-	UpstreamConfig
+type Unmarshaller interface {
+	UnmarshalUpstream([]byte, Basic) (Upstream, error)
+}
+
+type UpstreamStore interface {
+	MakeBasicUpstream(key, typ string) Basic
+
+	LoadUpstream(string) (Upstream, error)
+	LoadCurrentUpstream() (Upstream, error)
+	LoadCurrentUpstreamRaw() ([]byte, error)
+	LoadKnownUpstreams() (map[string]string, error)
+	LoadUpstreamRaw(string) ([]byte, error)
+	StoreUpstream(Upstream) error
+	StoreCurrentUpstream(Upstream) error
+	StoreKnownUpstreams(map[string]string) error
+	DeleteUpstream(string) error
+
+	DeleteUpstreamNotify(string) error
+	StoreCurrentUpstreamNotify(Upstream) error
+}
+
+type Basic struct {
+	UpstreamKey  string `json:"Key"`
+	UpstreamType string `json:"Type"`
 	kv           kvstore.KVStore
-	unmarshaller Unmarshaller
+	api          plugin.API
 }
 
-func (up *BasicUpstream) Config() *UpstreamConfig {
-	return &up.UpstreamConfig
+var _ Upstream = (*Basic)(nil)
+
+func NewBasic(key, typ string, api plugin.API, kv kvstore.KVStore) Basic {
+	return Basic{
+		UpstreamKey:  key,
+		UpstreamType: typ,
+		api:          api,
+		kv:           kv,
+	}
 }
 
-func (up BasicUpstream) DisplayDetails() map[string]string {
-	return map[string]string{}
+func (up Basic) Key() string {
+	return up.UpstreamKey
 }
 
-func (up BasicUpstream) GetClient(string, User) (*jira.Client, error) {
+func (up Basic) Type() string {
+	return up.UpstreamType
+}
+
+func (up Basic) DisplayFields() map[string]interface{} {
+	return map[string]interface{}{}
+}
+
+func (up Basic) GetClient(string, User) (*jira.Client, error) {
 	return nil, errors.New("API not available")
 }
 
-func (up BasicUpstream) GetUserConnectURL(ots kvstore.OneTimeStore, pluginURL string, mattermostUserId string) (string, error) {
+func (up Basic) GetUserConnectURL(ots kvstore.KVStore, pluginURL string, mattermostUserId string) (string, error) {
 	return "", nil
 }
 

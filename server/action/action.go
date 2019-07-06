@@ -5,31 +5,41 @@ package action
 
 import (
 	"fmt"
+	"html/template"
 
 	"github.com/pkg/errors"
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/context"
+	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	"github.com/mattermost/mattermost-server/model"
 	"github.com/mattermost/mattermost-server/plugin"
 )
 
-// Context has pre-computed values for an action
+type Config struct {
+	API            plugin.API
+	UpstreamStore  upstream.UpstreamStore
+	PluginContext  *plugin.Context
+	Templates      map[string]*template.Template
+	OneTimeStore   kvstore.KVStore
+	BotIconURL     string
+	BotUserId      string
+	BotUserName    string
+	WebhookSecret  string
+	EnableJiraUI   bool
+	MattermostUser *model.User
+	Upstream       upstream.Upstream
+}
+
 type Context struct {
-	*context.Context `json:"-"`
+	Config
 
-	PluginContext *plugin.Context
-	LogErr        error
-
-	MattermostUser      *model.User
 	MattermostUserId    string
 	MattermostTeamId    string
 	MattermostChannelId string
 
-	Upstream               upstream.Upstream
 	UpstreamJWT            *jwt.Token
 	UpstreamJWTAccountId   string
 	UpstreamJWTDisplayName string
@@ -40,6 +50,8 @@ type Context struct {
 
 	// TODO proxy via an `upstream.Client`?
 	JiraClient *jira.Client
+
+	LogError error
 }
 
 type Action interface {
@@ -71,23 +83,21 @@ type actionHandler struct {
 }
 
 type action struct {
-	context *Context
+	context Context
 }
 
 var _ Action = (*action)(nil)
 
-func NewAction(router *Router, context context.Context, pc *plugin.Context, mattermostUserId string) Action {
+func NewAction(config Config) Action {
 	return &action{
-		context: &Context{
-			Context:          &context,
-			PluginContext:    pc,
-			MattermostUserId: mattermostUserId,
+		context: Context{
+			Config: config,
 		},
 	}
 }
 
 func (a *action) Context() *Context {
-	return a.context
+	return &a.context
 }
 
 func (a action) Debugf(f string, args ...interface{}) {
