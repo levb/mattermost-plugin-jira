@@ -3,19 +3,10 @@
 
 package plugin_tests
 
-
 import (
 	"encoding/json"
-	"testing"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/context"
-	"github.com/mattermost/mattermost-plugin-jira/server/kvstore"
-	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
-	"github.com/mattermost/mattermost-server/model"
-	"github.com/mattermost/mattermost-server/plugin/plugintest"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -33,7 +24,7 @@ const (
 )
 
 type UpstreamA struct {
-	upstream.BasicUpstream
+	upstream.Basic
 	A string
 	C string
 }
@@ -44,7 +35,7 @@ type UserA struct {
 }
 
 type UpstreamB struct {
-	upstream.BasicUpstream
+	upstream.Basic
 	B string
 	C string
 }
@@ -56,102 +47,29 @@ type UserB struct {
 
 type unmarshallerA struct{}
 
-func (_ unmarshallerA) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
+func (_ unmarshallerA) UnmarshalUpstream(data []byte, basicUp upstream.Basic) (upstream.Upstream, error) {
 	up := UpstreamA{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	up.BasicUpstream = basicUp
+	up.Basic = basicUp
 	return &up, nil
 }
 
 type unmarshallerB struct{}
 
-func (_ unmarshallerB) UnmarshalUpstream(data []byte, basicUp upstream.BasicUpstream) (upstream.Upstream, error) {
+func (_ unmarshallerB) UnmarshalUpstream(data []byte, basicUp upstream.Basic) (upstream.Upstream, error) {
 	up := UpstreamB{}
 	err := json.Unmarshal(data, &up)
 	if err != nil {
 		return nil, err
 	}
-	up.BasicUpstream = basicUp
+	up.Basic = basicUp
 	return &up, nil
 }
 
 var Unmarshallers = map[string]upstream.Unmarshaller{
 	UpstreamA_Type: &unmarshallerA{},
 	UpstreamB_Type: &unmarshallerB{},
-}
-
-func NewProxy_2Upstreams2Users(t *testing.T, s upstream.Store) {
-	up1 := &UpstreamA{
-		BasicUpstream: s.MakeBasicUpstream(
-			upstream.UpstreamConfig{
-				StoreConfig: *s.Config(),
-				Type:        UpstreamA_Type,
-				Key:         UpstreamA_Key,
-				URL:         UpstreamA_URL,
-			}),
-		A: "aaa",
-		C: "bbb",
-	}
-
-	up2 := &UpstreamB{
-		BasicUpstream: s.MakeBasicUpstream(
-			upstream.UpstreamConfig{
-				StoreConfig: *s.Config(),
-				Type:        UpstreamB_Type,
-				Key:         UpstreamB_Key,
-				URL:         UpstreamB_URL,
-			}),
-		B: "aaa-aaa",
-		C: "ccc",
-	}
-
-	err := s.Store(up1)
-	require.Nil(t, err)
-	err = s.Store(up2)
-	require.Nil(t, err)
-	err = s.StoreCurrent(up2)
-	require.Nil(t, err)
-
-	user1 := upstream.NewBasicUser(UserA_MattermostId, UserA_UpstreamId)
-	err = up1.StoreUser(user1)
-	require.Nil(t, err)
-
-	user2 := upstream.NewBasicUser(UserB_MattermostId, UserB_UpstreamId)
-	err = up2.StoreUser(user2)
-	require.Nil(t, err)
-}
-
-func SetupTestPlugin(t *testing.T, api *plugintest.API, conf context.Config,
-	mmconfig *model.Config) *plugin.Plugin {
-
-	if mmconfig == nil {
-		mmconfig = &model.Config{
-			ServiceSettings: model.ServiceSettings{
-				SiteURL: model.NewString("http://localhost:8065"),
-			},
-		}
-	}
-
-	kv := kvstore.NewMockedStore()
-	p := &plugin.Plugin{}
-	p.SetAPI(api)
-
-	api.On("GetUserByUsername", mock.AnythingOfTypeArgument("string")).Return(&model.User{}, nil)
-	api.On("LogDebug",
-		mock.AnythingOfTypeArgument("string")).Return(nil)
-	api.On("LogInfo",
-		mock.AnythingOfTypeArgument("string")).Return(nil)
-	api.On("GetConfig").Return(mmconfig)
-
-	f, err := plugin.MakeContext(p.API, kv, Unmarshallers, "pluginID", "version-string", "./templates")
-	require.Nil(t, err)
-	p.UpdateContext(f)
-	p.UpdateContext(func(c *context.Context) {
-		plugin.RefreshContext(c, p.API, conf, "")
-	})
-
-	return p
 }

@@ -22,6 +22,12 @@ func NewOneTimePluginStore(api plugin.API, ttl time.Duration) OneTimeStore {
 	}
 }
 
+func NewOneTimeStore(kv KVStore) OneTimeStore {
+	return &ots{
+		KVStore: kv,
+	}
+}
+
 func (s ots) Load(key string) (data []byte, returnErr error) {
 	data, err := s.KVStore.Load(key)
 

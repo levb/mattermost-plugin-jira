@@ -12,9 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/context"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/teststore"
+	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	"github.com/mattermost/mattermost-plugin-jira/server/upstream"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 	"github.com/mattermost/mattermost-server/plugin/plugintest"
@@ -30,7 +29,7 @@ func TestGetUserInfo(t *testing.T) {
 	}{
 		"not found": {
 			rawStore:           true,
-			mattermostUserId:   teststore.KeyDoesNotExist,
+			mattermostUserId:   KeyDoesNotExist,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse:   jira.GetUserInfoResponse{},
 		},
@@ -40,20 +39,20 @@ func TestGetUserInfo(t *testing.T) {
 			expectedResponse:   jira.GetUserInfoResponse{},
 		},
 		"user A": {
-			mattermostUserId:   teststore.UserA_MattermostId,
+			mattermostUserId:   UserA_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: jira.GetUserInfoResponse{
 				HasUpstream: true,
-				UpstreamURL: teststore.UpstreamB_URL,
+				UpstreamURL: UpstreamB_URL,
 			},
 		},
 		"user B": {
-			mattermostUserId:   teststore.UserB_MattermostId,
+			mattermostUserId:   UserB_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: jira.GetUserInfoResponse{
-				UpstreamUserId: teststore.UserB_UpstreamId,
+				UpstreamUserId: UserB_UpstreamId,
 				HasUpstream:    true,
-				UpstreamURL:    teststore.UpstreamB_URL,
+				UpstreamURL:    UpstreamB_URL,
 				IsConnected:    true,
 				Settings: upstream.UserSettings{
 					Notifications: true,
@@ -63,11 +62,14 @@ func TestGetUserInfo(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI: true,
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI: false,
+				},
 			}, nil)
+
 			if !tc.rawStore {
-				teststore.UpstreamStore_2Upstreams2Users(t, p.GetContext().UpstreamStore)
+				Store2Upstreams2Users(t, p.Proxy)
 			}
 			w := httptest.NewRecorder()
 			request := httptest.NewRequest("GET", "/api/v2/userinfo", nil)
@@ -103,7 +105,7 @@ func TestGetSettingsInfo(t *testing.T) {
 		},
 		"user A": {
 			enabled:            true,
-			mattermostUserId:   teststore.UserA_MattermostId,
+			mattermostUserId:   UserA_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse: jira.GetSettingsInfoResponse{
 				UIEnabled: true,
@@ -111,17 +113,19 @@ func TestGetSettingsInfo(t *testing.T) {
 		},
 		"user A disabled": {
 			enabled:            false,
-			mattermostUserId:   teststore.UserA_MattermostId,
+			mattermostUserId:   UserA_MattermostId,
 			expectedStatusCode: http.StatusOK,
 			expectedResponse:   jira.GetSettingsInfoResponse{},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI: tc.enabled,
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI: tc.enabled,
+				},
 			}, nil)
-			teststore.UpstreamStore_2Upstreams2Users(t, p.GetContext().UpstreamStore)
+			Store2Upstreams2Users(t, p.Proxy)
 
 			w := httptest.NewRecorder()
 			request := httptest.NewRequest("GET", "/api/v2/settingsinfo", nil)

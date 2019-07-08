@@ -12,9 +12,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/mattermost/mattermost-plugin-jira/server/context"
 	"github.com/mattermost/mattermost-plugin-jira/server/jira"
-	"github.com/mattermost/mattermost-plugin-jira/server/teststore"
+	"github.com/mattermost/mattermost-plugin-jira/server/plugin"
 	"github.com/mattermost/mattermost-server/model"
 	mmplugin "github.com/mattermost/mattermost-server/plugin"
 	"github.com/mattermost/mattermost-server/plugin/plugintest"
@@ -226,10 +225,12 @@ func TestSubscribe(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI:  false,
-				WebhookSecret: "somesecret",
-				BotUserName:   "someuser",
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI:  false,
+					WebhookSecret: "somesecret",
+					BotUserName:   "someuser",
+				},
 			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
@@ -301,10 +302,12 @@ func TestDeleteSubscription(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI:  false,
-				WebhookSecret: "somesecret",
-				BotUserName:   "someuser",
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI:  false,
+					WebhookSecret: "somesecret",
+					BotUserName:   "someuser",
+				},
 			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
@@ -380,10 +383,12 @@ func TestEditSubscription(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI:  false,
-				WebhookSecret: "somesecret",
-				BotUserName:   "someuser",
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI:  false,
+					WebhookSecret: "somesecret",
+					BotUserName:   "someuser",
+				},
 			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
@@ -522,10 +527,12 @@ func TestGetSubscriptionsForChannel(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			api := &plugintest.API{}
-			p := teststore.SetupTestPlugin(t, api, context.Config{
-				EnableJiraUI:  false,
-				WebhookSecret: "somesecret",
-				BotUserName:   "someuser",
+			p := SetupTestPlugin(t, api, plugin.Config{
+				MainConfig: plugin.MainConfig{
+					EnableJiraUI:  false,
+					WebhookSecret: "somesecret",
+					BotUserName:   "someuser",
+				},
 			}, nil)
 
 			api.On("GetChannelMember", mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(&model.ChannelMember{}, (*model.AppError)(nil))
