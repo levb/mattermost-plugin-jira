@@ -17,31 +17,37 @@ import (
 
 const helpTextHeader = "###### Mattermost Jira Plugin - Slash Command Help\n"
 
-// <><> TODO Update command Help
-const commonHelpText = "\n* `/jira connect` - Connect your Mattermost account to your Jira account\n" +
-	"* `/jira disconnect` - Disconnect your Mattermost account from your Jira account\n" +
-	"* `/jira assign <issue-key> <assignee>` - Change the assignee of a Jira issue\n" +
-	"* `/jira unassign <issue-key>` - Unassign the Jira issue\n" +
-	"* `/jira create <text (optional)>` - Create a new Issue with 'text' inserted into the description field\n" +
-	"* `/jira transition <issue-key> <state>` - Change the state of a Jira issue\n" +
-	"* `/jira info` - Display information about the current user and the Jira plug-in\n" +
+const commonHelpText = "\n" +
+	"* `/jira assign [--instance jiraURL] <issue-key> <assignee>` - Change the assignee of a Jira issue\n" +
+	"* `/jira connect [jiraURL]` - Connect your Mattermost account to your Jira account\n" +
+	"* `/jira create [--instance jiraURL] <text (optional)>` - Create a new Issue with 'text' inserted into the description field\n" +
+	"* `/jira disconnect [jiraURL]` - Disconnect your Mattermost account from your Jira account\n" +
 	"* `/jira help` - Launch the Jira plugin command line help syntax\n" +
-	"* `/jira view <issue-key>` - View the details of a specific Jira issue\n" +
-	"* `/jira settings [setting] [value]` - Update your user settings\n" +
+	"* `/jira info` - Display information about the current user and the Jira plug-in\n" +
+	"* `/jira instance list` - List installed Jira instances\n" +
+	"* `/jira instance settings [--instance jiraURL] [setting] [value]` - Update your user settings\n" +
 	"  * [setting] can be `notifications`\n" +
-	"  * [value] can be `on` or `off`\n"
+	"  * [value] can be `on` or `off`\n" +
+	"* `/jira transition [--instance jiraURL] <issue-key> <state>` - Change the state of a Jira issue\n" +
+	"* `/jira unassign [--instance jiraURL] <issue-key>` - Unassign the Jira issue\n" +
+	"* `/jira view [--instance jiraURL] <issue-key>` - View the details of a specific Jira issue\n" +
+	""
 
 const sysAdminHelpText = "\n###### For System Administrators:\n" +
-	"Install:\n" +
-	"* `/jira install cloud <URL>` - Connect Mattermost to a Jira Cloud instance located at <URL>\n" +
-	"* `/jira install server <URL>` - Connect Mattermost to a Jira Server or Data Center instance located at <URL>\n" +
-	"Uninstall:\n" +
-	"* `/jira uninstall cloud <URL>` - Disconnect Mattermost from a Jira Cloud instance located at <URL>\n" +
-	"* `/jira uninstall server <URL>` - Disconnect Mattermost from a Jira Server or Data Center instance located at <URL>\n" +
+	"Install Jira instances:\n" +
+	"* `/jira instance install cloud <jiraURL>` - Connect Mattermost to a Jira Cloud instance located at <jiraURL>\n" +
+	"* `/jira instance install server <jiraURL>` - Connect Mattermost to a Jira Server or Data Center instance located at <jiraURL>\n" +
+	"Uninstall Jira instances:\n" +
+	"* `/jira instance uninstall cloud <jiraURL>` - Disconnect Mattermost from a Jira Cloud instance located at <jiraURL>\n" +
+	"* `/jira instance uninstall server <jiraURL>` - Disconnect Mattermost from a Jira Server or Data Center instance located at <jiraURL>\n" +
+	"Manage channel subscriptions:\n" +
+	"* `/jira subscribe [--instance jiraURL]` - Configure the Jira notifications sent to this channel\n" +
+	"* `/jira subscribe list` - Display all the the subscription rules setup across all the channels and teams on your Mattermost instance\n" +
+	"Other:\n" +
+	"* `/jira instance default <jiraURL>` - Set default Jira instance to <jiraURL>, which must be already installed\n" +
 	"* `/jira stats` - Display usage statistics\n" +
-	"* `/jira webhook` -  Show the Mattermost webhook to receive JQL queries\n" +
-	"* `/jira subscribe` - Configure the Jira notifications sent to this channel\n" +
-	"* `/jira subscribe list` - Display all the the subscription rules setup across all the channels and teams on your Mattermost instance\n"
+	"* `/jira webhook [--instance jiraURL]` -  Show the Mattermost webhook to receive JQL queries\n" +
+	""
 
 // Available settings
 const (
@@ -136,13 +142,21 @@ func (p *Plugin) ExecuteCommand(c *plugin.Context, commandArgs *model.CommandArg
 }
 
 func executeDisconnect(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
-	instanceID, args, err := p.parseCommandFlagInstanceID(args)
-	if err != nil {
-		return p.responsef(header, "Failed to identify a Jira instance. Error: "+err.Error())
-	}
-	if len(args) != 0 {
+	var instanceID types.ID
+	switch len(args) {
+	case 0:
+		// skip
+	case 1:
+		jiraURL, err := utils.NormalizeInstallURL(p.GetSiteURL(), args[0])
+		if err != nil {
+			return p.responsef(header, err.Error())
+		}
+		instanceID = types.ID(jiraURL)
+
+	default:
 		return p.help(header)
 	}
+
 	disconnected, err := p.DisconnectUser(instanceID, types.ID(header.UserId))
 	if err == ErrConnectionNotFound {
 		return p.responsef(header, "Could not complete the **disconnection** request. You do not currently have a Jira account linked to your Mattermost account.")
@@ -154,11 +168,18 @@ func executeDisconnect(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 }
 
 func executeConnect(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
-	instanceID, args, err := p.parseCommandFlagInstanceID(args)
-	if err != nil {
-		return p.responsef(header, "Failed to identify a Jira instance. Error: "+err.Error())
-	}
-	if len(args) != 0 {
+	var instanceID types.ID
+	switch len(args) {
+	case 0:
+		// skip
+	case 1:
+		jiraURL, err := utils.NormalizeInstallURL(p.GetSiteURL(), args[0])
+		if err != nil {
+			return p.responsef(header, err.Error())
+		}
+		instanceID = types.ID(jiraURL)
+
+	default:
 		return p.help(header)
 	}
 
@@ -809,12 +830,19 @@ func (p *Plugin) responseRedirect(redirectURL string) *model.CommandResponse {
 }
 
 func executeInstanceDefault(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
+	authorized, err := authorizedSysAdmin(p, header.UserId)
+	if err != nil {
+		return p.responsef(header, "%v", err)
+	}
+	if !authorized {
+		return p.responsef(header, "`/jira instance default` can only be run by a system administrator.")
+	}
 	if len(args) != 1 {
 		return p.help(header)
 	}
 	instanceID := types.ID(args[0])
 
-	err := p.StoreDefaultInstance(instanceID)
+	err = p.StoreDefaultInstance(instanceID)
 	if err != nil {
 		return p.responsef(header, "Failed to set default Jira instance %s: %v", instanceID, err)
 	}
