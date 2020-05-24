@@ -130,7 +130,7 @@ func (p *Plugin) serveHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Req
 
 	// Firehose webhook setup for channel subscriptions
 	case routeAPISubscribeWebhook:
-		return httpSubscribeWebhook(p, w, r)
+		return p.httpSubscribeWebhook(w, r, instanceID)
 
 	// expvar
 	case "/debug/vars":

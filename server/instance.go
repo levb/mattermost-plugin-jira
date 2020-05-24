@@ -19,6 +19,7 @@ type Instance interface {
 	GetDisplayDetails() map[string]string
 	GetUserConnectURL(mattermostUserId string) (string, error)
 	GetManageAppsURL() string
+	GetManageWebhooksURL() string
 	GetURL() string
 
 	Common() *InstanceCommon

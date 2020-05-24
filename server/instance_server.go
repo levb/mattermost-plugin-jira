@@ -42,6 +42,10 @@ func (si *serverInstance) GetManageAppsURL() string {
 	return fmt.Sprintf("%s/plugins/servlet/applinks/listApplicationLinks", si.GetURL())
 }
 
+func (si *serverInstance) GetManageWebhooksURL() string {
+	return fmt.Sprintf("%s/plugins/servlet/webhooks", si.GetURL())
+}
+
 func (si *serverInstance) GetMattermostKey() string {
 	return si.MattermostKey
 }

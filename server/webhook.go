@@ -33,12 +33,12 @@ type webhook struct {
 	headline      string
 	text          string
 	fields        []*model.SlackAttachmentField
-	notifications []webhookNotification
+	notifications []webhookUserNotification
 	fieldInfo     webhookField
 	instanceID    types.ID
 }
 
-type webhookNotification struct {
+type webhookUserNotification struct {
 	jiraUsername  string
 	jiraAccountID string
 	message       string
@@ -166,17 +166,22 @@ func newWebhook(jwh *JiraWebhook, eventType string, format string, args ...inter
 	}
 }
 
-func (p *Plugin) GetWebhookURL(teamId, channelId string) (string, error) {
+func (p *Plugin) GetWebhookURL(jiraURL string, teamId, channelId string) (subURL, legacyURL string, err error) {
 	cf := p.getConfig()
+
+	instanceID, err := p.ResolveInstanceID(types.ID(jiraURL))
+	if err != nil {
+		return "", "", err
+	}
 
 	team, appErr := p.API.GetTeam(teamId)
 	if appErr != nil {
-		return "", appErr
+		return "", "", appErr
 	}
 
 	channel, appErr := p.API.GetChannel(channelId)
 	if appErr != nil {
-		return "", appErr
+		return "", "", appErr
 	}
 
 	v := url.Values{}
@@ -184,5 +189,8 @@ func (p *Plugin) GetWebhookURL(teamId, channelId string) (string, error) {
 	v.Add("secret", secret)
 	v.Add("team", team.Name)
 	v.Add("channel", channel.Name)
-	return p.GetPluginURL() + routeIncomingWebhook + "?" + v.Encode(), nil
+	subURL = p.GetPluginURL() + p.pathWithInstance(routeAPISubscribeWebhook, instanceID)
+	legacyURL = p.GetPluginURL() + p.pathWithInstance(routeIncomingWebhook, instanceID) + "?" + v.Encode()
+
+	return subURL, legacyURL, nil
 }

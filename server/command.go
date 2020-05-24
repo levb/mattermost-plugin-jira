@@ -787,15 +787,55 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 	if !authorized {
 		return p.responsef(header, "`/jira webhook` can only be run by a system administrator.")
 	}
+
+	var jiraURL string
+	switch len(args) {
+	case 0:
+		// skip
+	case 1:
+		jiraURL, err = utils.NormalizeInstallURL(p.GetSiteURL(), args[0])
+		if err != nil {
+			return p.responsef(header, err.Error())
+		}
+
+	default:
+		return p.help(header)
+	}
 	if len(args) != 0 {
 		return p.help(header)
 	}
 
-	u, err := p.GetWebhookURL(header.TeamId, header.ChannelId)
+	instance, err := p.LoadDefaultInstance(types.ID(jiraURL))
 	if err != nil {
 		return p.responsef(header, err.Error())
 	}
-	return p.responsef(header, "Please use the following URL to set up a Jira webhook: %v", u)
+	subWebhookURL, legacyWebhookURL, err := p.GetWebhookURL(jiraURL, header.TeamId, header.ChannelId)
+	if err != nil {
+		return p.responsef(header, err.Error())
+	}
+	return p.responsef(header,
+		"To set up webhook for instance %s please navigate to [Jira System Settings/Webhooks](%s) where you cam add webhooks.\n"+
+			"Use `--instance jiraURL` to specify another Jira instance. Use `/jira instance list` to view the available instances.\n\n"+
+			" - **subscriptions webhook** (set up once, shared by all channel subscription filters):\n"+
+			"   - `%s`\n"+
+			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
+			" - **legacy webhook** (publishes to this channel):\n"+
+			"   - `%s`\n"+
+			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
+			"   By default, the legacy webhook integration publishes notifications for issue create, resolve, unresolve, reopen, and assign events.\n"+
+			"   To publish (post) more events use the following extra parameters:\n"+
+			"   - `updated_all=1`: all events\n"+
+			"   - `updated_comments=1`: all comment events\n\n"+
+			"   - `updated_attachment=1`: updated issue attachments\n"+
+			"   - `updated_description=1`: updated issue description\n"+
+			"   - `updated_labels=1`: updated issue labels\n"+
+			"   - `updated_prioity=1`: updated issue priority\n"+
+			"   - `updated_rank=1`: ranked issue higher or lower\n"+
+			"   - `updated_sprint=1`: assigned issue to a different sprint\n"+
+			"   - `updated_status=1`: transitioned issed to a different status, like Done, In Progress\n"+
+			"   - `updated_summary=1`: renamed issue\n"+
+			"",
+		instance.GetID(), instance.GetManageWebhooksURL(), subWebhookURL, subWebhookURL, legacyWebhookURL, legacyWebhookURL)
 }
 
 func getCommand() *model.Command {

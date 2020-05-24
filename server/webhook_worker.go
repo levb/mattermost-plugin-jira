@@ -7,17 +7,23 @@ import (
 	"time"
 
 	"github.com/mattermost/mattermost-plugin-jira/server/utils"
+	"github.com/mattermost/mattermost-plugin-jira/server/utils/types"
 )
 
 type webhookWorker struct {
 	id        int
 	p         *Plugin
-	workQueue <-chan []byte
+	workQueue <-chan *webhookMessage
+}
+
+type webhookMessage struct {
+	InstanceID types.ID
+	Data       []byte
 }
 
 func (ww webhookWorker) work() {
-	for rawData := range ww.workQueue {
-		err := ww.process(rawData)
+	for msg := range ww.workQueue {
+		err := ww.process(msg)
 		if err != nil {
 			ww.p.errorf("WebhookWorker id: %d, error processing, err: %v", ww.id, err)
 		}
@@ -25,7 +31,7 @@ func (ww webhookWorker) work() {
 	}
 }
 
-func (ww webhookWorker) process(rawData []byte) (err error) {
+func (ww webhookWorker) process(msg *webhookMessage) (err error) {
 	conf := ww.p.getConfig()
 	start := time.Now()
 	defer func() {
@@ -42,11 +48,12 @@ func (ww webhookWorker) process(rawData []byte) (err error) {
 			isError = true
 		}
 		if conf.stats != nil {
-			conf.stats.EnsureEndpoint("jira/subscribe/processing").Record(utils.ByteSize(len(rawData)), 0, time.Since(start), isError, isIgnored)
+			path := ww.p.pathWithInstance("jira/subscribe/processing", msg.InstanceID)
+			conf.stats.EnsureEndpoint(path).Record(utils.ByteSize(len(msg.Data)), 0, time.Since(start), isError, isIgnored)
 		}
 	}()
 
-	wh, err := ParseWebhook(rawData)
+	wh, err := ParseWebhook(msg.Data)
 	if err != nil {
 		return err
 	}

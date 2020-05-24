@@ -672,7 +672,7 @@ func (p *Plugin) atomicModify(key string, modify func(initialValue []byte) ([]by
 	return nil
 }
 
-func httpSubscribeWebhook(p *Plugin, w http.ResponseWriter, r *http.Request) (status int, err error) {
+func (p *Plugin) httpSubscribeWebhook(w http.ResponseWriter, r *http.Request, instanceID types.ID) (status int, err error) {
 	conf := p.getConfig()
 	size := utils.ByteSize(0)
 	start := time.Now()
@@ -701,10 +701,18 @@ func httpSubscribeWebhook(p *Plugin, w http.ResponseWriter, r *http.Request) (st
 		return respondErr(w, http.StatusInternalServerError, err)
 	}
 
+	instanceID, err = p.ResolveInstanceID(instanceID)
+	if err != nil {
+		return respondErr(w, http.StatusInternalServerError, err)
+	}
+
 	// If there is space in the queue, immediately return a 200; we will process the webhook event async.
 	// If the queue is full, return a 503; we will not process that webhook event.
 	select {
-	case p.webhookQueue <- bb:
+	case p.webhookQueue <- &webhookMessage{
+		InstanceID: instanceID,
+		Data:       bb,
+	}:
 		return http.StatusOK, nil
 	default:
 		return respondErr(w, http.StatusServiceUnavailable, nil)

@@ -111,6 +111,10 @@ func (ci *cloudInstance) GetManageAppsURL() string {
 	return fmt.Sprintf("%s/plugins/servlet/upm", ci.GetURL())
 }
 
+func (ci *cloudInstance) GetManageWebhooksURL() string {
+	return fmt.Sprintf("%s/plugins/servlet/webhooks", ci.GetURL())
+}
+
 func (ci *cloudInstance) GetClient(connection *Connection) (Client, error) {
 	client, _, err := ci.getClientForConnection(connection)
 	if err != nil {
