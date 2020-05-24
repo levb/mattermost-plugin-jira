@@ -823,7 +823,7 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 			"   - `%s`\n"+
 			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
 			"   By default, the legacy webhook integration publishes notifications for issue create, resolve, unresolve, reopen, and assign events.\n"+
-			"   To publish (post) more events use the following extra parameters:\n"+
+			"   To publish (post) more events use the following extra `&`-separated parameters:\n"+
 			"   - `updated_all=1`: all events\n"+
 			"   - `updated_comments=1`: all comment events\n\n"+
 			"   - `updated_attachment=1`: updated issue attachments\n"+
