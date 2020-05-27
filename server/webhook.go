@@ -189,8 +189,8 @@ func (p *Plugin) GetWebhookURL(jiraURL string, teamId, channelId string) (subURL
 	v.Add("secret", secret)
 	v.Add("team", team.Name)
 	v.Add("channel", channel.Name)
-	subURL = p.GetPluginURL() + p.pathWithInstance(routeAPISubscribeWebhook, instanceID)
-	legacyURL = p.GetPluginURL() + p.pathWithInstance(routeIncomingWebhook, instanceID) + "?" + v.Encode()
+	subURL = p.GetPluginURL() + instancePath(routeAPISubscribeWebhook, instanceID)
+	legacyURL = p.GetPluginURL() + instancePath(routeIncomingWebhook, instanceID) + "?" + v.Encode()
 
 	return subURL, legacyURL, nil
 }

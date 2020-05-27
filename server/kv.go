@@ -456,12 +456,12 @@ func (store *store) CreateInactiveCloudInstance(jiraURL types.ID) (returnErr err
 	}
 
 	// Expire in 15 minutes
-	appErr := store.plugin.API.KVSetWithExpiry(hashkey(prefixInstance,
-		ci.GetURL()), data, 15*60)
+	key := hashkey(prefixInstance, ci.GetURL())
+	appErr := store.plugin.API.KVSetWithExpiry(key, data, 15*60)
 	if appErr != nil {
 		return errors.WithMessagef(appErr, "failed to store new Jira Cloud instance:%s", jiraURL)
 	}
-	store.plugin.debugf("Stored: new Jira Cloud instance: %s", ci.GetURL())
+	store.plugin.debugf("Stored: new Jira Cloud instance: %s as %s", ci.GetURL(), key)
 	return nil
 }
 

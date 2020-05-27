@@ -99,8 +99,9 @@ func (ci *cloudInstance) GetUserConnectURL(mattermostUserId string) (string, err
 
 	v := url.Values{}
 	v.Add(argMMToken, token)
-	return fmt.Sprintf("%v/login?dest-url=%v/plugins/servlet/ac/%s/%s?%v",
-		ci.GetURL(), ci.GetURL(), ci.AtlassianSecurityContext.Key, userRedirectPageKey, v.Encode()), nil
+	connectURL := fmt.Sprintf("%s/login?dest-url=%s/plugins/servlet/ac/%s/%s?%v",
+		ci.GetURL(), ci.GetURL(), ci.AtlassianSecurityContext.Key, userRedirectPageKey, v.Encode())
+	return connectURL, nil
 }
 
 func (ci *cloudInstance) GetURL() string {

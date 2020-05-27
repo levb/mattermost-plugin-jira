@@ -37,13 +37,12 @@ func (instances Instances) Set(ic *InstanceCommon) {
 	instances.ValueSet.Set(ic)
 }
 
-func (instances Instances) AsConfigMap() []interface{} {
-	out := []interface{}{}
+func (instances Instances) AsConfigMap() map[string]interface{} {
+	out := map[string]interface{}{}
 	for _, id := range instances.IDs() {
 		instance := instances.Get(id)
-		out = append(out, instance.Common().AsConfigMap())
+		out[instance.GetID().String()] = instance.Common().AsConfigMap()
 	}
-
 	return out
 }
 
@@ -97,9 +96,6 @@ func (p *Plugin) InstallInstance(instance Instance) error {
 	var updated *Instances
 	err := p.instanceStore.UpdateInstances(
 		func(instances *Instances) error {
-			if instances.Contains(instance.GetID()) {
-				return ErrAlreadyExists
-			}
 			err := p.instanceStore.StoreInstance(instance)
 			if err != nil {
 				return err

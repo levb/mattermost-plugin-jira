@@ -817,7 +817,8 @@ func (p *Plugin) httpChannelEditSubscription(w http.ResponseWriter, r *http.Requ
 }
 
 func (p *Plugin) httpChannelDeleteSubscription(w http.ResponseWriter, r *http.Request, mattermostUserId string, instanceID types.ID) (int, error) {
-	subscriptionId := strings.TrimPrefix(r.URL.Path, routeAPISubscriptionsChannel+"/")
+	_, path := splitInstancePath(r.URL.Path)
+	subscriptionId := strings.TrimPrefix(path, routeAPISubscriptionsChannel+"/")
 	if len(subscriptionId) != 26 {
 		return respondErr(w, http.StatusBadRequest,
 			errors.New("bad subscription id"))
@@ -869,7 +870,8 @@ func (p *Plugin) httpChannelDeleteSubscription(w http.ResponseWriter, r *http.Re
 }
 
 func (p *Plugin) httpChannelGetSubscriptions(w http.ResponseWriter, r *http.Request, mattermostUserId string, instanceID types.ID) (int, error) {
-	channelId := strings.TrimPrefix(r.URL.Path, routeAPISubscriptionsChannel+"/")
+	_, path := splitInstancePath(r.URL.Path)
+	channelId := strings.TrimPrefix(path, routeAPISubscriptionsChannel+"/")
 	if len(channelId) != 26 {
 		return respondErr(w, http.StatusBadRequest,
 			errors.New("bad channel id"))

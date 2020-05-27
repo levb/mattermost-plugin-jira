@@ -192,7 +192,7 @@ func executeConnect(p *Plugin, c *plugin.Context, header *model.CommandArgs, arg
 				instanceID, instanceID)
 		}
 
-		link = p.pathWithInstance(link, instanceID)
+		link = instancePath(link, instanceID)
 	}
 
 	return p.responsef(header, "[Click here to link your Jira account](%s%s)",
@@ -373,11 +373,6 @@ func executeInstanceInstallCloud(p *Plugin, c *plugin.Context, header *model.Com
 		return p.responsef(header, err.Error())
 	}
 
-	u, err := p.GetWebhookURL(header.TeamId, header.ChannelId)
-	if err != nil {
-		return p.responsef(header, err.Error())
-	}
-
 	const addResponseFormat = `
 %s has been successfully installed. To finish the configuration, create a new app in your Jira instance following these steps:
 
@@ -392,11 +387,11 @@ func executeInstanceInstallCloud(p *Plugin, c *plugin.Context, header *model.Com
 7. Click the "More Actions" (...) option of any message in the channel (available when you hover over a message).
 
 If you see an option to create a Jira issue, you're all set! If not, refer to our [documentation](https://mattermost.gitbook.io/plugin-jira) for troubleshooting help.
-Jira webhook URL: %s
+<><> Jira webhook URL
 `
 
 	// TODO What is the exact group membership in Jira required? Site-admins?
-	return p.responsef(header, addResponseFormat, jiraURL, jiraURL, p.GetPluginURL(), p.pathWithInstance(routeACJSON, types.ID(jiraURL)), u)
+	return p.responsef(header, addResponseFormat, jiraURL, jiraURL, p.GetPluginURL(), instancePath(routeACJSON, types.ID(jiraURL)))
 }
 
 func executeInstanceInstallServer(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
@@ -422,11 +417,6 @@ func executeInstanceInstallServer(p *Plugin, c *plugin.Context, header *model.Co
 		return p.responsef(header, "The Jira URL you provided looks like a Jira Cloud URL - install it with:\n```\n/jira install cloud %s\n```", jiraURL)
 	}
 
-	u, err := p.GetWebhookURL(header.TeamId, header.ChannelId)
-	if err != nil {
-		return p.responsef(header, err.Error())
-	}
-
 	const addResponseFormat = `` +
 		`Server instance has been installed. To finish the configuration, add an Application Link in your Jira instance following these steps:
 
@@ -440,13 +430,15 @@ func executeInstanceInstallServer(p *Plugin, c *plugin.Context, header *model.Co
 6. In the following **Link Applications** screen, set the following values:
   - **Consumer Key**: %s
   - **Consumer Name**: Mattermost
-  - **Public Key**: %s
-7. Click **Continue**.
+  - **Public Key**:` + "\n    ```\n%s\n```" + `
+  - **Consumer Callback URL**: _leave blank_
+  - **Allow 2-legged OAuth**: _leave unchecked_
+  7. Click **Continue**.
 6. Use the "/jira connect" command to connect your Mattermost account with your Jira account.
 7. Click the "More Actions" (...) option of any message in the channel (available when you hover over a message).
 
 If you see an option to create a Jira issue, you're all set! If not, refer to our [documentation](https://mattermost.gitbook.io/plugin-jira) for troubleshooting help.
-Jira webhook URL: %s
+<><> Jira webhook URL
 `
 	instance := newServerInstance(p, jiraURL)
 	err = p.InstallInstance(instance)
@@ -458,7 +450,7 @@ Jira webhook URL: %s
 	if err != nil {
 		return p.responsef(header, "Failed to load public key: %v", err)
 	}
-	return p.responsef(header, addResponseFormat, jiraURL, p.GetSiteURL(), instance.GetMattermostKey(), pkey, u)
+	return p.responsef(header, addResponseFormat, jiraURL, p.GetSiteURL(), instance.GetMattermostKey(), pkey)
 }
 
 // executeUninstall will uninstall the jira instance if the url matches, and then update all connected clients
@@ -497,16 +489,11 @@ func executeInstanceUninstall(p *Plugin, c *plugin.Context, header *model.Comman
 		&model.WebsocketBroadcast{},
 	)
 
-	u, err := p.GetWebhookURL(header.TeamId, header.ChannelId)
-	if err != nil {
-		return p.responsef(header, err.Error())
-	}
-
 	uninstallInstructions := `` +
 		`Jira instance successfully uninstalled. Navigate to [**your app management URL**](%s) in order to remove the application from your Jira instance.
-Don't forget to remove Jira-side webhook from URL: %s'
+<><> Don't forget to remove Jira-side webhook from URL'
 `
-	return p.responsef(header, uninstallInstructions, uninstalled.GetManageAppsURL(), u)
+	return p.responsef(header, uninstallInstructions, uninstalled.GetManageAppsURL())
 }
 
 func executeUnassign(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
@@ -613,8 +600,7 @@ func executeInfo(p *Plugin, c *plugin.Context, header *model.CommandArgs, args .
 	case info.IsConnected:
 		resp += fmt.Sprintf("###### Connected to %v Jira instances:\n", info.User.ConnectedInstances.Len())
 	case info.Instances.Len() > 0:
-		resp += fmt.Sprintf("Jira is installed, but you are not connected. Please [connect](%s%s).\n",
-			p.GetPluginURL(), routeUserConnect)
+		resp += "Jira is installed, but you are not connected. Please type `/jira connect` to connect.\n"
 	default:
 		return p.responsef(header, resp+"\nNo Jira instances installed, please contact your system administrator.")
 	}
@@ -816,10 +802,12 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 	return p.responsef(header,
 		"To set up webhook for instance %s please navigate to [Jira System Settings/Webhooks](%s) where you cam add webhooks.\n"+
 			"Use `--instance jiraURL` to specify another Jira instance. Use `/jira instance list` to view the available instances.\n\n"+
-			" - **subscriptions webhook** (set up once, shared by all channel subscription filters):\n"+
+			" ##### Subscriptions webhook.\n"+
+			" Subscriptions webhook needs to be set up once, is shared by all channels and subscription filters.\n"+
 			"   - `%s`\n"+
 			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
-			" - **legacy webhook** (publishes to this channel):\n"+
+			" ##### Legacy webhook.\n"+
+			" Legacy webhook needs to be set up for each channel. For this channel:\n"+
 			"   - `%s`\n"+
 			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
 			"   By default, the legacy webhook integration publishes notifications for issue create, resolve, unresolve, reopen, and assign events.\n"+

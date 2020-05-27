@@ -368,7 +368,8 @@ func endpointURL(endpoint string) (string, error) {
 var keyOrIDRegex = regexp.MustCompile("(^[[:alpha:]]+-)?[[:digit:]]+$")
 
 func endpointNameFromRequest(r *http.Request) string {
-	l := strings.ToLower(r.URL.Path)
+	_, path := splitInstancePath(r.URL.Path)
+	l := strings.ToLower(path)
 	s := strings.TrimLeft(l, "/rest/api")
 	if s == l {
 		return "_unrecognized"

@@ -26,6 +26,8 @@ type Instance interface {
 	types.Value
 }
 
+// InstanceCommon contains metadata common for both cloud and server instances.
+// The fields lack `json` modifiers to be backwards compatible with v2.
 type InstanceCommon struct {
 	*Plugin       `json:"-"`
 	PluginVersion string `json:",omitempty"`

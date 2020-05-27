@@ -48,7 +48,7 @@ func (ww webhookWorker) process(msg *webhookMessage) (err error) {
 			isError = true
 		}
 		if conf.stats != nil {
-			path := ww.p.pathWithInstance("jira/subscribe/processing", msg.InstanceID)
+			path := instancePath("jira/subscribe/processing", msg.InstanceID)
 			conf.stats.EnsureEndpoint(path).Record(utils.ByteSize(len(msg.Data)), 0, time.Since(start), isError, isIgnored)
 		}
 	}()
