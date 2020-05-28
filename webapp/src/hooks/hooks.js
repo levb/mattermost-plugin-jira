@@ -80,7 +80,7 @@ export default class Hooks {
             }
 
             if (instance && instance.instance_id) {
-                const encodedID =  btoa(instance.instance_id);
+                const encodedID = btoa(instance.instance_id);
                 const target = '/plugins/' + PluginId + '/instance/' + encodedID + '/user/connect';
                 window.open(target, '_blank');
             } else {

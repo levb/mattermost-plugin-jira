@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/mattermost/mattermost-plugin-jira/server/utils"
+	"github.com/mattermost/mattermost-plugin-jira/server/utils/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/utils/types"
 	"github.com/mattermost/mattermost-server/v5/model"
 	"github.com/pkg/errors"
@@ -64,14 +65,14 @@ func (instances Instances) GetDefault() *InstanceCommon {
 	return nil
 }
 
-func (instances Instances) SetDefault(id types.ID) error {
-	if !instances.Contains(id) {
-		return ErrInstanceNotFound
+func (instances Instances) SetDefault(instanceID types.ID) error {
+	if !instances.Contains(instanceID) {
+		return errors.Wrapf(kvstore.ErrNotFound, "instance %q", instanceID)
 	}
 
 	prev := instances.GetDefault()
 	prev.IsDefault = false
-	instance := instances.Get(id)
+	instance := instances.Get(instanceID)
 	instance.IsDefault = true
 
 	return nil
@@ -112,27 +113,25 @@ func (p *Plugin) InstallInstance(instance Instance) error {
 	return nil
 }
 
-var ErrInstanceNotFound = errors.New("instance not found")
-
-func (p *Plugin) UninstallInstance(id types.ID, instanceType InstanceType) (Instance, error) {
+func (p *Plugin) UninstallInstance(instanceID types.ID, instanceType InstanceType) (Instance, error) {
 	var instance Instance
 	var updated *Instances
 	err := p.instanceStore.UpdateInstances(
 		func(instances *Instances) error {
-			if !instances.Contains(id) {
-				return ErrInstanceNotFound
+			if !instances.Contains(instanceID) {
+				return errors.Wrapf(kvstore.ErrNotFound, "instance %q", instanceID)
 			}
 			var err error
-			instance, err = p.instanceStore.LoadInstance(id)
+			instance, err = p.instanceStore.LoadInstance(instanceID)
 			if err != nil {
 				return err
 			}
 			if instanceType != instance.Common().Type {
-				return errors.Errorf("%s did not match instance %s type %s", instanceType, id, instance.Common().Type)
+				return errors.Errorf("%s did not match instance %s type %s", instanceType, instanceID, instance.Common().Type)
 			}
-			instances.Delete(id)
+			instances.Delete(instanceID)
 			updated = instances
-			return p.instanceStore.DeleteInstance(id)
+			return p.instanceStore.DeleteInstance(instanceID)
 		})
 	if err != nil {
 		return nil, err
@@ -172,7 +171,7 @@ func (p *Plugin) LoadDefaultInstance(explicit types.ID) (Instance, error) {
 		return nil, err
 	}
 	if id == "" {
-		return nil, errors.New("No instance available")
+		return nil, errors.Wrap(kvstore.ErrNotFound, "no default available")
 	}
 	instance, err := p.instanceStore.LoadInstance(id)
 	if err != nil {
@@ -191,7 +190,7 @@ func (p *Plugin) ResolveInstanceID(explicit types.ID) (types.ID, error) {
 		return "", err
 	}
 	if instances.IsEmpty() {
-		return "", ErrInstanceNotFound
+		return "", errors.Wrap(kvstore.ErrNotFound, "no instances installed")
 	}
 
 	def := instances.GetDefault()

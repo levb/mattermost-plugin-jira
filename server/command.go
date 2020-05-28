@@ -12,6 +12,7 @@ import (
 
 	"github.com/mattermost/mattermost-plugin-jira/server/expvar"
 	"github.com/mattermost/mattermost-plugin-jira/server/utils"
+	"github.com/mattermost/mattermost-plugin-jira/server/utils/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/utils/types"
 )
 
@@ -158,8 +159,8 @@ func executeDisconnect(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 	}
 
 	disconnected, err := p.DisconnectUser(instanceID, types.ID(header.UserId))
-	if err == ErrConnectionNotFound {
-		return p.responsef(header, "Could not complete the **disconnection** request. You do not currently have a Jira account linked to your Mattermost account.")
+	if errors.Cause(err) == kvstore.ErrNotFound {
+		return p.responsef(header, "Could not complete the **disconnection** request. You do not currently have a Jira account at %q linked to your Mattermost account.", instanceID)
 	}
 	if err != nil {
 		return p.responsef(header, "Could not complete the **disconnection** request. Error: %v", err)
@@ -421,17 +422,17 @@ func executeInstanceInstallServer(p *Plugin, c *plugin.Context, header *model.Co
 		`Server instance has been installed. To finish the configuration, add an Application Link in your Jira instance following these steps:
 
 1. Navigate to [**Settings > Applications > Application Links**](%s/plugins/servlet/applinks/listApplicationLinks)
-2. Enter %s as the application link, then click **Create new link**.
-3. In **Configure Application URL** screen, confirm your Mattermost URL is entered as the "New URL". Ignore any displayed errors and click **Continue**.
+2. Enter "Mattermost" as the application link, then click **Create new link**.
+3. In **Configure Application URL** screen, confirm "http://mattermost" as both "Entered URL" and "New URL". Ignore any displayed errors and click **Continue**.
 4. In **Link Applications** screen, set the following values:
   - **Application Name**: Mattermost
   - **Application Type**: Generic Application
 5. Check the **Create incoming link** value, then click **Continue**.
 6. In the following **Link Applications** screen, set the following values:
-  - **Consumer Key**: %s
-  - **Consumer Name**: Mattermost
-  - **Public Key**:` + "\n    ```\n%s\n```" + `
-  - **Consumer Callback URL**: _leave blank_
+  - **Consumer Key**: ` + "`%s`" + `
+  - **Consumer Name**: ` + "`Mattermost`" + `
+  - **Public Key**:` + "\n```\n%s\n```" + `
+  - **Consumer Casdfllback URL**: _leave blank_
   - **Allow 2-legged OAuth**: _leave unchecked_
   7. Click **Continue**.
 6. Use the "/jira connect" command to connect your Mattermost account with your Jira account.
@@ -450,7 +451,7 @@ If you see an option to create a Jira issue, you're all set! If not, refer to ou
 	if err != nil {
 		return p.responsef(header, "Failed to load public key: %v", err)
 	}
-	return p.responsef(header, addResponseFormat, jiraURL, p.GetSiteURL(), instance.GetMattermostKey(), pkey)
+	return p.responsef(header, addResponseFormat, jiraURL, instance.GetMattermostKey(), strings.TrimSpace(string(pkey)))
 }
 
 // executeUninstall will uninstall the jira instance if the url matches, and then update all connected clients
@@ -635,7 +636,7 @@ func executeInfo(p *Plugin, c *plugin.Context, header *model.CommandArgs, args .
 			}
 			connection, err := p.userStore.LoadConnection(instanceID, mattermostUserID)
 			if err != nil {
-				if err == ErrUserNotFound {
+				if errors.Cause(err) == kvstore.ErrNotFound {
 					continue
 				}
 				return p.responsef(header, err.Error())

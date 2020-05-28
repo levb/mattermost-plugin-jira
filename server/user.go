@@ -12,6 +12,7 @@ import (
 
 	"github.com/mattermost/mattermost-server/v5/model"
 
+	"github.com/mattermost/mattermost-plugin-jira/server/utils/kvstore"
 	"github.com/mattermost/mattermost-plugin-jira/server/utils/types"
 )
 
@@ -134,7 +135,7 @@ func (p *Plugin) httpGetSettingsInfo(w http.ResponseWriter, r *http.Request) (in
 func (p *Plugin) connectUser(instance Instance, mattermostUserID types.ID, connection *Connection) error {
 	user, err := p.userStore.LoadUser(mattermostUserID)
 	if err != nil {
-		if err != ErrUserNotFound {
+		if errors.Cause(err) != kvstore.ErrNotFound {
 			return err
 		}
 		user = &User{
@@ -179,9 +180,8 @@ func (p *Plugin) disconnectUser(instance Instance, mattermostUserID types.ID) (*
 		return nil, err
 	}
 	if !user.ConnectedInstances.Contains(instance.GetID()) {
-		return nil, ErrInstanceNotFound
+		return nil, errors.Wrapf(kvstore.ErrNotFound, "user is not connected to %q", instance.GetID())
 	}
-
 	conn, err := p.userStore.LoadConnection(instance.GetID(), mattermostUserID)
 	if err != nil {
 		return nil, err
@@ -202,7 +202,6 @@ func (p *Plugin) disconnectUser(instance Instance, mattermostUserID types.ID) (*
 	if err != nil {
 		return nil, err
 	}
-
 	p.API.PublishWebSocketEvent(websocketEventDisconnect, info.AsConfigMap(),
 		&model.WebsocketBroadcast{UserId: mattermostUserID.String()})
 	return conn, nil
