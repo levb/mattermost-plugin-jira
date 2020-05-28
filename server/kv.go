@@ -462,8 +462,15 @@ func (store *store) CreateInactiveCloudInstance(jiraURL types.ID) (returnErr err
 	return nil
 }
 
-func (store *store) LoadInstance(id types.ID) (Instance, error) {
-	return store.loadInstance(hashkey(prefixInstance, id.String()))
+func (store *store) LoadInstance(instanceID types.ID) (Instance, error) {
+	if instanceID == "" {
+		return nil, errors.Wrap(kvstore.ErrNotFound, "no instance specified")
+	}
+	instance, err := store.loadInstance(hashkey(prefixInstance, instanceID.String()))
+	if err != nil {
+		return nil, errors.Wrap(err, instanceID.String())
+	}
+	return instance, nil
 }
 
 func (store *store) loadInstance(fullkey string) (Instance, error) {
@@ -472,7 +479,7 @@ func (store *store) loadInstance(fullkey string) (Instance, error) {
 		return nil, appErr
 	}
 	if data == nil {
-		return nil, errors.New("not found: " + fullkey)
+		return nil, errors.Wrap(kvstore.ErrNotFound, fullkey)
 	}
 
 	// Unmarshal into any of the types just so that we can get the common data

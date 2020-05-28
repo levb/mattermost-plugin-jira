@@ -233,7 +233,7 @@ func executeJiraDefault(p *Plugin, c *plugin.Context, header *model.CommandArgs,
 func executeView(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
 	instance, _, err := p.parseCommandFlagInstance(args)
 	if err != nil {
-		return p.responsef(header, "Failed to identify a Jira instance. Error: "+err.Error())
+		return p.responsef(header, "Failed to identify a Jira instance. Error: %v.", err)
 	}
 	if len(args) != 1 {
 		return p.responsef(header, "Please specify an issue key in the form `/jira view <issue-key>`.")
@@ -500,7 +500,7 @@ func executeInstanceUninstall(p *Plugin, c *plugin.Context, header *model.Comman
 func executeUnassign(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
 	instance, args, err := p.parseCommandFlagInstance(args)
 	if err != nil {
-		return p.responsef(header, "Failed to identify a Jira instance. Error: "+err.Error())
+		return p.responsef(header, "Failed to identify a Jira instance. Error: %v.", err)
 	}
 
 	if len(args) < 1 {
@@ -518,7 +518,7 @@ func executeUnassign(p *Plugin, c *plugin.Context, header *model.CommandArgs, ar
 func executeAssign(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
 	instance, args, err := p.parseCommandFlagInstance(args)
 	if err != nil {
-		return p.responsef(header, "Failed to identify a Jira instance. Error: "+err.Error())
+		return p.responsef(header, "Failed to identify a Jira instance. Error: %v.", err)
 	}
 
 	if len(args) < 2 {
