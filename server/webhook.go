@@ -17,7 +17,7 @@ import (
 type Webhook interface {
 	Events() StringSet
 	PostToChannel(p *Plugin, instanceID types.ID, channelId, fromUserId string) (*model.Post, int, error)
-	PostNotifications(p *Plugin) ([]*model.Post, int, error)
+	PostNotifications(p *Plugin, instanceID types.ID) ([]*model.Post, int, error)
 }
 
 type webhookField struct {
@@ -35,7 +35,6 @@ type webhook struct {
 	fields        []*model.SlackAttachmentField
 	notifications []webhookUserNotification
 	fieldInfo     webhookField
-	instanceID    types.ID
 }
 
 type webhookUserNotification struct {
@@ -94,13 +93,13 @@ func (wh webhook) PostToChannel(p *Plugin, instanceID types.ID, channelId, fromU
 	return post, http.StatusOK, nil
 }
 
-func (wh *webhook) PostNotifications(p *Plugin) ([]*model.Post, int, error) {
+func (wh *webhook) PostNotifications(p *Plugin, instanceID types.ID) ([]*model.Post, int, error) {
 	if len(wh.notifications) == 0 {
 		return nil, http.StatusOK, nil
 	}
 
 	// We will only send webhook events if we have a connected instance.
-	instance, err := p.LoadDefaultInstance(wh.instanceID)
+	instance, err := p.LoadDefaultInstance(instanceID)
 	if err != nil {
 		// This isn't an internal server error. There's just no instance installed.
 		return nil, http.StatusOK, nil
@@ -187,9 +186,10 @@ func (p *Plugin) GetWebhookURL(jiraURL string, teamId, channelId string) (subURL
 	v := url.Values{}
 	secret, _ := url.QueryUnescape(cf.Secret)
 	v.Add("secret", secret)
+	subURL = p.GetPluginURL() + instancePath(routeAPISubscribeWebhook, instanceID) + "?" + v.Encode()
+
 	v.Add("team", team.Name)
 	v.Add("channel", channel.Name)
-	subURL = p.GetPluginURL() + instancePath(routeAPISubscribeWebhook, instanceID)
 	legacyURL = p.GetPluginURL() + instancePath(routeIncomingWebhook, instanceID) + "?" + v.Encode()
 
 	return subURL, legacyURL, nil

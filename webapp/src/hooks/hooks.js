@@ -90,6 +90,7 @@ export default class Hooks {
         }
 
         if (message && message === subscribeCommand) {
+            // TODO: <><> add instance picker and/or filter to Subscribe UI
             if (!getInstalledInstances(this.store.getState())) {
                 this.store.dispatch(sendEphemeralPost('There is no Jira instance installed. Please contact your system administrator.'));
                 return Promise.resolve({});

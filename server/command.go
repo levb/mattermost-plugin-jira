@@ -47,7 +47,7 @@ const sysAdminHelpText = "\n###### For System Administrators:\n" +
 	"Other:\n" +
 	"* `/jira instance default <jiraURL>` - Set default Jira instance to <jiraURL>, which must be already installed\n" +
 	"* `/jira stats` - Display usage statistics\n" +
-	"* `/jira webhook [--instance jiraURL]` -  Show the Mattermost webhook to receive JQL queries\n" +
+	"* `/jira webhook [<jiraURL>]` -  Show the Mattermost webhook to receive JQL queries\n" +
 	""
 
 // Available settings
@@ -788,9 +788,6 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 	default:
 		return p.help(header)
 	}
-	if len(args) != 0 {
-		return p.help(header)
-	}
 
 	instance, err := p.LoadDefaultInstance(types.ID(jiraURL))
 	if err != nil {
@@ -802,13 +799,13 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 	}
 	return p.responsef(header,
 		"To set up webhook for instance %s please navigate to [Jira System Settings/Webhooks](%s) where you cam add webhooks.\n"+
-			"Use `--instance jiraURL` to specify another Jira instance. Use `/jira instance list` to view the available instances.\n\n"+
-			" ##### Subscriptions webhook.\n"+
-			" Subscriptions webhook needs to be set up once, is shared by all channels and subscription filters.\n"+
+			"Use `/jira webhook jiraURL` to specify another Jira instance. Use `/jira instance list` to view the available instances.\n"+
+			"##### Subscriptions webhook.\n"+
+			"Subscriptions webhook needs to be set up once, is shared by all channels and subscription filters.\n"+
 			"   - `%s`\n"+
 			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
-			" ##### Legacy webhook.\n"+
-			" Legacy webhook needs to be set up for each channel. For this channel:\n"+
+			"##### Legacy webhook.\n"+
+			"Legacy webhook needs to be set up for each channel. For this channel:\n"+
 			"   - `%s`\n"+
 			"   - right-click on [link](%s) and \"Copy Link Address\" to Copy\n"+
 			"   By default, the legacy webhook integration publishes notifications for issue create, resolve, unresolve, reopen, and assign events.\n"+

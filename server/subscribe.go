@@ -170,8 +170,8 @@ func (p *Plugin) matchesSubsciptionFilters(wh *webhook, filters SubscriptionFilt
 	return true
 }
 
-func (p *Plugin) getChannelsSubscribed(wh *webhook) (StringSet, error) {
-	subs, err := p.getSubscriptions(wh.instanceID)
+func (p *Plugin) getChannelsSubscribed(wh *webhook, instanceID types.ID) (StringSet, error) {
+	subs, err := p.getSubscriptions(instanceID)
 	if err != nil {
 		return nil, err
 	}
