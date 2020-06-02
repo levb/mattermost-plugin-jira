@@ -47,34 +47,30 @@ func (instances Instances) AsConfigMap() map[string]interface{} {
 	return out
 }
 
-func (instances Instances) GetDefault() *InstanceCommon {
+func (instances Instances) GetLegacy() *InstanceCommon {
 	if instances.IsEmpty() {
 		return nil
 	}
-	if instances.Len() == 1 {
-		return instances.ValueSet.GetAt(0).(*InstanceCommon)
-	}
-
 	for _, id := range instances.ValueSet.IDs() {
 		instance := instances.Get(id)
-		if instance.IsDefault {
+		if instance.IsV2Legacy {
 			return instance
 		}
 	}
-
 	return nil
 }
 
-func (instances Instances) SetDefault(instanceID types.ID) error {
+func (instances Instances) SetV2Legacy(instanceID types.ID) error {
 	if !instances.Contains(instanceID) {
 		return errors.Wrapf(kvstore.ErrNotFound, "instance %q", instanceID)
 	}
 
-	prev := instances.GetDefault()
-	prev.IsDefault = false
+	prev := instances.GetLegacy()
+	if prev != nil {
+		prev.IsV2Legacy = false
+	}
 	instance := instances.Get(instanceID)
-	instance.IsDefault = true
-
+	instance.IsV2Legacy = true
 	return nil
 }
 
@@ -146,18 +142,19 @@ func (p *Plugin) wsInstancesChanged(instances *Instances) {
 	msg := map[string]interface{}{
 		"instances": instances.AsConfigMap(),
 	}
-	defaultInstance := instances.GetDefault()
-	if defaultInstance != nil {
-		msg["default_connect_instance"] = defaultInstance.Common().AsConfigMap()
+	if instances.Len() == 1 {
+		for _, instanceID := range instances.IDs() {
+			msg["default_connect_instance"] = instances.Get(instanceID).AsConfigMap()
+		}
 	}
 	// Notify users we have uninstalled an instance
 	p.API.PublishWebSocketEvent(websocketEventInstanceStatus, msg, &model.WebsocketBroadcast{})
 }
 
-func (p *Plugin) StoreDefaultInstance(id types.ID) error {
+func (p *Plugin) StoreV2LegacyInstance(id types.ID) error {
 	err := p.instanceStore.UpdateInstances(
 		func(instances *Instances) error {
-			return instances.SetDefault(id)
+			return instances.SetV2Legacy(id)
 		})
 	if err != nil {
 		return err
@@ -189,15 +186,14 @@ func (p *Plugin) ResolveInstanceID(explicit types.ID) (types.ID, error) {
 	if err != nil {
 		return "", err
 	}
-	if instances.IsEmpty() {
+	switch instances.Len() {
+	case 0:
 		return "", errors.Wrap(kvstore.ErrNotFound, "no instances installed")
+	case 1:
+		return instances.IDs()[0], nil
+	default:
+		return "", errors.Wrapf(kvstore.ErrNotFound, "can't choose default from %v instances", instances.Len())
 	}
-
-	def := instances.GetDefault()
-	if def == nil {
-		return "", nil
-	}
-	return instances.GetDefault().GetID(), nil
 }
 
 func (p *Plugin) ResolveInstanceURL(jiraurl string) (types.ID, error) {

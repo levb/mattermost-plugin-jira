@@ -602,7 +602,7 @@ func (store *store) MigrateV2Instances() error {
 		}
 
 		if instances.Len() > 1 {
-			instances.SetDefault(instance.GetID())
+			instances.SetV2Legacy(instance.GetID())
 		}
 	}
 

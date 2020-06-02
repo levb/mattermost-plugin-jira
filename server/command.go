@@ -45,7 +45,7 @@ const sysAdminHelpText = "\n###### For System Administrators:\n" +
 	"* `/jira subscribe [--instance jiraURL]` - Configure the Jira notifications sent to this channel\n" +
 	"* `/jira subscribe list` - Display all the the subscription rules setup across all the channels and teams on your Mattermost instance\n" +
 	"Other:\n" +
-	"* `/jira instance default <jiraURL>` - Set default Jira instance to <jiraURL>, which must be already installed\n" +
+	"* `/jira instance v2 <jiraURL>` - Set the Jira instance to process \"v2\" webhooks and subscriptions (not prefixed with the instance ID)\n" +
 	"* `/jira stats` - Display usage statistics\n" +
 	"* `/jira webhook [<jiraURL>]` -  Show the Mattermost webhook to receive JQL queries\n" +
 	""
@@ -88,7 +88,7 @@ var jiraCommandHandler = CommandHandler{
 		"instance/install/cloud":  executeInstanceInstallCloud,
 		"instance/install/server": executeInstanceInstallServer,
 		"instance/list":           executeInstanceList,
-		"instance/default":        executeInstanceDefault,
+		"instance/v2":             executeInstanceV2Legacy,
 		"instance/uninstall":      executeInstanceUninstall,
 		"instance/settings":       executeSettings,
 	},
@@ -307,8 +307,8 @@ func executeInstanceList(p *Plugin, c *plugin.Context, header *model.CommandArgs
 			details = string(instance.Common().Type)
 		}
 		format := "|%v|%s|%s|\n"
-		if instances.Get(instanceID).IsDefault {
-			format = "| **%v** | **%s** |%s|\n"
+		if instances.Get(instanceID).IsV2Legacy {
+			format = "|%v|%s (v2 legacy)|%s|\n"
 		}
 		text += fmt.Sprintf(format, i+1, key, details)
 	}
@@ -623,8 +623,8 @@ func executeInfo(p *Plugin, c *plugin.Context, header *model.CommandArgs, args .
 		resp += fmt.Sprintf("\n###### Available Jira instances:\n")
 		for _, instanceID := range info.Instances.IDs() {
 			ic := info.Instances.Get(instanceID)
-			if ic.IsDefault {
-				resp += sbullet(instanceID.String(), fmt.Sprintf("%s, **default**", ic.Type))
+			if ic.IsV2Legacy {
+				resp += sbullet(instanceID.String(), fmt.Sprintf("%s, **v2 legacy**", ic.Type))
 			} else {
 				resp += sbullet(instanceID.String(), fmt.Sprintf("%s", ic.Type))
 			}
@@ -855,7 +855,7 @@ func (p *Plugin) responseRedirect(redirectURL string) *model.CommandResponse {
 	}
 }
 
-func executeInstanceDefault(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
+func executeInstanceV2Legacy(p *Plugin, c *plugin.Context, header *model.CommandArgs, args ...string) *model.CommandResponse {
 	authorized, err := authorizedSysAdmin(p, header.UserId)
 	if err != nil {
 		return p.responsef(header, "%v", err)
@@ -868,7 +868,7 @@ func executeInstanceDefault(p *Plugin, c *plugin.Context, header *model.CommandA
 	}
 	instanceID := types.ID(args[0])
 
-	err = p.StoreDefaultInstance(instanceID)
+	err = p.StoreV2LegacyInstance(instanceID)
 	if err != nil {
 		return p.responsef(header, "Failed to set default Jira instance %s: %v", instanceID, err)
 	}

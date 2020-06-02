@@ -34,7 +34,7 @@ type InstanceCommon struct {
 
 	InstanceID types.ID
 	Type       InstanceType
-	IsDefault  bool
+	IsV2Legacy bool
 }
 
 func newInstanceCommon(p *Plugin, instanceType InstanceType, instanceID types.ID) *InstanceCommon {
@@ -50,7 +50,6 @@ func (ic InstanceCommon) AsConfigMap() map[string]interface{} {
 	return map[string]interface{}{
 		"type":        string(ic.Type),
 		"instance_id": string(ic.InstanceID),
-		"is_default":  ic.IsDefault,
 	}
 }
 
