@@ -798,7 +798,7 @@ func executeWebhookURL(p *Plugin, c *plugin.Context, header *model.CommandArgs, 
 		return p.responsef(header, err.Error())
 	}
 	return p.responsef(header,
-		"To set up webhook for instance %s please navigate to [Jira System Settings/Webhooks](%s) where you cam add webhooks.\n"+
+		"To set up webhook for instance %s please navigate to [Jira System Settings/Webhooks](%s) where you can add webhooks.\n"+
 			"Use `/jira webhook jiraURL` to specify another Jira instance. Use `/jira instance list` to view the available instances.\n"+
 			"##### Subscriptions webhook.\n"+
 			"Subscriptions webhook needs to be set up once, is shared by all channels and subscription filters.\n"+
