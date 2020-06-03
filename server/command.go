@@ -432,7 +432,7 @@ func executeInstanceInstallServer(p *Plugin, c *plugin.Context, header *model.Co
   - **Consumer Key**: ` + "`%s`" + `
   - **Consumer Name**: ` + "`Mattermost`" + `
   - **Public Key**:` + "\n```\n%s\n```" + `
-  - **Consumer Casdfllback URL**: _leave blank_
+  - **Consumer Callback URL**: _leave blank_
   - **Allow 2-legged OAuth**: _leave unchecked_
   7. Click **Continue**.
 6. Use the "/jira connect" command to connect your Mattermost account with your Jira account.
