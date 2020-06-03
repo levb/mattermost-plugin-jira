@@ -143,7 +143,7 @@ func (p *Plugin) wsInstancesChanged(instances *Instances) {
 		"instances": instances.AsConfigMap(),
 	}
 	if instances.Len() == 1 {
-		for _, instanceID := range instances.IDs() {
+		instanceID := instances.IDs()[0]
 			msg["default_connect_instance"] = instances.Get(instanceID).AsConfigMap()
 		}
 	}
